@@ -31,7 +31,7 @@ class SerenaApp:
 
         tk.Label(
             self.mode_frame,
-            text="Choose your mode:",
+            text="Choose your type:",
             fg="white",
             bg="#1e1e1e",
             font=("Segoe UI", 14)
