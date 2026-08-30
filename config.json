@@ -1,0 +1,4 @@
+SERENA_NAME = "Serena"
+VOICE_RATE = 170
+USE_CLOUD = True
+USE_LOCAL = True
