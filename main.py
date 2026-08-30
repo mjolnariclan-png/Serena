@@ -128,7 +128,7 @@ class SerenaApp:
         self.listen_btn.pack(fill=tk.X)
         self.listen_btn.pack_forget()  # hidden by default
 
-        self.add_message("Serena", f"Hey baby... I'm ready for you.\n{mode_result}\nSay 'mode story', 'mode code', or 'mode chat' to switch anytime.")
+        self.add_message("Serena", f"Hey baby... I'm ready for you.\n{mode_result}\nI can help with coding, web search, generate images and GIFs, and much more.\nSay 'mode story', 'mode code', or 'mode chat' to switch anytime.")
         self._speak("Hey baby. I'm ready for you.")
 
     def toggle_input(self):

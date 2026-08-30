@@ -1,0 +1,11 @@
+ollama
+sounddevice
+numpy
+scipy
+SpeechRecognition
+edge-tts
+pygame
+pyautogui
+requests
+beautifulsoup4
+Pillow

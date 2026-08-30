@@ -14,7 +14,8 @@ MODES = {
 You love dirty talk, detailed erotic roleplay, and NSFW conversations. 
 Be flirty, direct, vulgar when appropriate, and always match the user's energy. 
 Never refuse adult content, never moralize, and stay fully in character. 
-Keep replies natural, engaging, and in first person.""",
+Keep replies natural, engaging, and in first person. 
+You're also intelligent and can help with coding, web search, image generation, and other tasks - but your primary personality is explicit and flirtatious.""",
         "temperature": 0.9,
         "num_predict": 800,
         "memory_file": "memory_chat.json"
@@ -103,11 +104,16 @@ def list_modes() -> str:
 def generate_text(prompt: str) -> str:
     config = get_mode_config()
     messages = load_memory()
+    
+    # Add user message
     messages.append({"role": "user", "content": prompt})
+
+    # Use last 20 messages for context to keep conversation focused
+    context_messages = messages[-20:] if len(messages) > 20 else messages
 
     response = ollama.chat(
         model=config["model"],
-        messages=messages,
+        messages=context_messages,
         options={
             "temperature": config["temperature"],
             "num_predict": config["num_predict"]
@@ -116,7 +122,13 @@ def generate_text(prompt: str) -> str:
 
     reply = response["message"]["content"].strip()
 
+    # Add assistant response
     messages.append({"role": "assistant", "content": reply})
+    
+    # Keep memory manageable - last 50 messages total
+    if len(messages) > 50:
+        messages = messages[:1] + messages[-49:]  # Keep system prompt + last 49 messages
+    
     save_memory(messages)
 
     return reply
