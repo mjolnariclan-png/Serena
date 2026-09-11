@@ -27,6 +27,50 @@ def local_response(prompt: str):
         except Exception as e:
             return f"Couldn't open Chrome: {str(e)}"
 
+    # Open specific URL in Chrome
+    if "open" in p and "chrome" in p:
+        try:
+            # Extract URL from the prompt - look for actual domains
+            url = None
+            words = p.split()
+            
+            # First, look for words that look like domains
+            for word in words:
+                # Clean the word of punctuation
+                clean_word = word.strip(".,!?;:")
+                
+                # Check if it looks like a domain
+                if ("." in clean_word and 
+                    len(clean_word) > 4 and 
+                    clean_word.replace(".", "").replace("-", "").isalnum()):
+                    # Make sure it's not just a sentence ending
+                    if clean_word.count(".") >= 1 and len(clean_word.split(".")[-1]) >= 2:
+                        url = clean_word if clean_word.startswith("http") else f"http://{clean_word}"
+                        break
+            
+            # If no domain found, try extracting from common patterns
+            if not url:
+                import re
+                # Match domain patterns
+                domain_pattern = r'\b([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b'
+                matches = re.findall(domain_pattern, p)
+                if matches:
+                    # Get the longest match (most likely the actual domain)
+                    url = max(matches, key=len) if max(matches, key=len).startswith("http") else f"http://{max(matches, key=len)}"
+            
+            if url:
+                if platform.system() == "Windows":
+                    subprocess.Popen(["start", "chrome", url], shell=True)
+                elif platform.system() == "Darwin":  # macOS
+                    subprocess.Popen(["open", "-a", "Google Chrome", url])
+                else:  # Linux
+                    subprocess.Popen(["google-chrome", url])
+                return f"Opening {url} in Chrome for you."
+            else:
+                return "I couldn't find a valid URL in your request."
+        except Exception as e:
+            return f"Couldn't open URL in Chrome: {str(e)}"
+
     if p in ["open code", "launch code", "start vs code", "open vs code"]:
         try:
             if platform.system() == "Windows":

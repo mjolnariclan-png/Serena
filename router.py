@@ -47,6 +47,54 @@ def is_agentic_request(prompt: str) -> bool:
     prompt_lower = prompt.lower()
     return any(keyword in prompt_lower for keyword in agentic_keywords)
 
+def detect_mode_switch(prompt: str) -> str:
+    """Automatically detect and switch modes based on conversation context"""
+    prompt_lower = prompt.lower()
+    
+    # Chat/sexual mode detection - explicit, romantic, or sexual keywords
+    chat_keywords = [
+        "babe", "baby", "hun", "honey", "love", "sexy", "hot", "horny",
+        "fuck", "sex", "naughty", "dirty", "kiss", "touch", "pleasure",
+        "aroused", "turn on", "wet", "hard", "cock", "dick", "pussy",
+        "cum", "orgasm", "intimate", "desire", "lust", "seduce", "flirt",
+        "beautiful", "gorgeous", "pretty", "handsome", "miss you", "want you"
+    ]
+    
+    # Writing/story mode detection - check first since it has specific terms
+    story_keywords = [
+        "write", "story", "book", "chapter", "character", "plot", "novel",
+        "creative writing", "fiction", "narrative", "protagonist", "dialogue",
+        "scene", "setting", "genre", "draft", "outline", "manuscript",
+        "author", "publish", "literary", "poem", "poetry", "tale"
+    ]
+    
+    # Coding mode detection
+    code_keywords = [
+        "code", "function", "class", "python", "javascript", "programming",
+        "debug", "error", "syntax", "variable", "algorithm", "api", "database",
+        "implement", "refactor", "compile", "script", "fix",
+        "git", "repository", "commit", "pull", "push", "merge", "branch",
+        "developer", "software", "app", "application"
+    ]
+    
+    # Check each category - story has priority over code for overlapping terms
+    if any(keyword in prompt_lower for keyword in chat_keywords):
+        if get_current_mode() != "chat":
+            set_mode("chat")
+            return "[Auto-switched to Chat mode]"
+    
+    elif any(keyword in prompt_lower for keyword in story_keywords):
+        if get_current_mode() != "story":
+            set_mode("story")
+            return "[Auto-switched to Writing mode]"
+    
+    elif any(keyword in prompt_lower for keyword in code_keywords):
+        if get_current_mode() != "code":
+            set_mode("code")
+            return "[Auto-switched to Coding mode]"
+    
+    return None
+
 def route(prompt: str):
     prompt_lower = prompt.lower().strip()
 
@@ -54,7 +102,7 @@ def route(prompt: str):
     if any(word in prompt_lower for word in ["turn off", "shutdown", "go to sleep", "goodbye"]):
         return "__SHUTDOWN__"
 
-    # Mode switching
+    # Manual mode switching
     if prompt_lower.startswith("mode "):
         new_mode = prompt_lower.replace("mode ", "").strip()
         return set_mode(new_mode)
@@ -68,6 +116,17 @@ def route(prompt: str):
     # Memory management
     if any(phrase in prompt_lower for phrase in ["clear memory", "start over", "new chat", "forget everything"]):
         return clear_memory()
+
+    # Local commands (check BEFORE mode switching and AI)
+    local_result = local_response(prompt)
+    if local_result is not None:
+        return local_result
+
+    # Automatic mode detection (only if not handled by local commands)
+    mode_switch = detect_mode_switch(prompt)
+    if mode_switch:
+        # Process the prompt with the new mode
+        return f"{mode_switch}\n{generate_text(prompt)}"
 
     # Agentic requests - route to Hermes if available or if in agentic mode
     if HERMES_AVAILABLE and (is_agentic_request(prompt) or get_current_mode() == "agentic"):
@@ -161,11 +220,6 @@ def route(prompt: str):
         coding_result = handle_coding_request(prompt)
         if coding_result:
             return coding_result
-
-    # Local commands (exact match only)
-    local_result = local_response(prompt)
-    if local_result is not None:
-        return local_result
 
     # Fall back to AI
     return generate_text(prompt)

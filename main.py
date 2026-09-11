@@ -17,51 +17,9 @@ class SerenaApp:
         self.listen = None
         self.speak = None
 
-        # ── MODE SELECT SCREEN ───────────────────────────────
-        self.mode_frame = tk.Frame(root, bg="#1e1e1e")
-        self.mode_frame.pack(expand=True)
-
-        tk.Label(
-            self.mode_frame,
-            text="Serena",
-            fg="#ff80ab",
-            bg="#1e1e1e",
-            font=("Segoe UI", 28, "bold")
-        ).pack(pady=(0, 20))
-
-        tk.Label(
-            self.mode_frame,
-            text="Choose your type:",
-            fg="white",
-            bg="#1e1e1e",
-            font=("Segoe UI", 14)
-        ).pack(pady=(0, 10))
-
-        modes = [
-            ("chat", "💬  Chat / Sexting", "#ff4081"),
-            ("story", "✍️  Writing / Storyline", "#7c4dff"),
-            ("code", "💻  Coding / Debug", "#00e676"),
-            ("agentic", "🤖  Agentic / Tasks", "#ff9800")
-        ]
-
-        for key, label, color in modes:
-            btn = tk.Button(
-                self.mode_frame,
-                text=label,
-                command=lambda k=key: self.pick_mode(k),
-                bg=color,
-                fg="white",
-                font=("Segoe UI", 12, "bold"),
-                width=22,
-                height=2,
-                cursor="hand2"
-            )
-            btn.pack(pady=6)
-
-    def pick_mode(self, mode_key):
-        result = set_mode(mode_key)
-        self.mode_frame.destroy()
-        self.build_chat_ui(result)
+        # ── START DIRECTLY IN CHAT MODE ───────────────────────
+        set_mode("chat")
+        self.build_chat_ui("Chat / Sexting mode")
 
     def build_chat_ui(self, mode_result):
         # ── INPUT METHOD BAR ────────────────────────────────
@@ -69,9 +27,9 @@ class SerenaApp:
         top_bar.pack(fill=tk.X, padx=10, pady=(10, 0))
 
         self.input_method = tk.StringVar(value="text")
-
-        tk.Label(top_bar, text=f"Mode: {mode_result}", fg="#ff80ab",
-                 bg="#1e1e1e", font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
+        self.mode_label = tk.Label(top_bar, text=f"Mode: {mode_result}", fg="#ff80ab",
+                                   bg="#1e1e1e", font=("Segoe UI", 10, "bold"))
+        self.mode_label.pack(side=tk.LEFT)
 
         tk.Radiobutton(top_bar, text="Text", variable=self.input_method,
                        value="text", fg="white", bg="#1e1e1e",
@@ -129,7 +87,7 @@ class SerenaApp:
         self.listen_btn.pack(fill=tk.X)
         self.listen_btn.pack_forget()  # hidden by default
 
-        self.add_message("Serena", f"Hey baby... I'm ready for you.\n{mode_result}\nI can help with coding, web search, generate images and GIFs, and much more.\nSay 'mode story', 'mode code', or 'mode chat' to switch anytime.")
+        self.add_message("Serena", f"Hey baby... I'm ready for you.\n{mode_result}\nI can help with coding, web search, generate images and GIFs, and much more.\nI'll automatically switch modes based on what we talk about - just start chatting!")
         self._speak("Hey baby. I'm ready for you.")
 
     def toggle_input(self):
@@ -166,6 +124,13 @@ class SerenaApp:
         self.chat.tag_config("serena", foreground="#ff80ab")
         self.chat.configure(state="disabled")
         self.chat.see(tk.END)
+        
+        # Update mode label if mode changed
+        if hasattr(self, 'mode_label'):
+            from ai import get_current_mode, get_mode_config
+            current_mode = get_current_mode()
+            mode_config = get_mode_config(current_mode)
+            self.mode_label.config(text=f"Mode: {mode_config['label']}")
 
     def process(self, user_input):
         if not user_input:
