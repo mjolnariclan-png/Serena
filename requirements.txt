@@ -9,3 +9,7 @@ pyautogui
 requests
 beautifulsoup4
 Pillow
+pydantic
+pydantic-core
+httpx
+openai
