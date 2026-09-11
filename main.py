@@ -40,7 +40,8 @@ class SerenaApp:
         modes = [
             ("chat", "💬  Chat / Sexting", "#ff4081"),
             ("story", "✍️  Writing / Storyline", "#7c4dff"),
-            ("code", "💻  Coding / Debug", "#00e676")
+            ("code", "💻  Coding / Debug", "#00e676"),
+            ("agentic", "🤖  Agentic / Tasks", "#ff9800")
         ]
 
         for key, label, color in modes:

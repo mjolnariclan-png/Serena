@@ -27,9 +27,10 @@ else:
 try:
     from run_agent import AIAgent
     HERMES_AVAILABLE = True
-except ImportError:
+    print("Hermes Agent successfully imported")
+except ImportError as e:
     HERMES_AVAILABLE = False
-    print("Hermes Agent not available. Install and configure Hermes for advanced agentic features.")
+    print(f"Hermes Agent not available: {e}. Install and configure Hermes for advanced agentic features.")
 
 
 class HermesAgent:

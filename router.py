@@ -8,6 +8,13 @@ try:
 except ImportError:
     WEB_SEARCH_AVAILABLE = False
 
+# Import Hermes Agent for agentic capabilities
+try:
+    from hermes_wrapper import is_hermes_available, get_hermes_agent, hermes_chat
+    HERMES_AVAILABLE = is_hermes_available()
+except ImportError:
+    HERMES_AVAILABLE = False
+
 try:
     from image_gen import generate_image, is_image_request, extract_image_prompt
     IMAGE_GEN_AVAILABLE = True
@@ -25,6 +32,19 @@ try:
     CODING_HELPER_AVAILABLE = True
 except ImportError:
     CODING_HELPER_AVAILABLE = False
+
+def is_agentic_request(prompt: str) -> bool:
+    """Detect if a request requires agentic capabilities (multi-step tasks, tool use, etc.)"""
+    agentic_keywords = [
+        "organize", "rename", "move", "copy", "delete", "create",
+        "analyze", "inspect", "check", "scan", "search",
+        "download", "upload", "install", "setup", "configure",
+        "plan", "execute", "run", "automate", "batch",
+        "multiple files", "all files", "directory", "folder",
+        "system", "process", "service", "registry"
+    ]
+    prompt_lower = prompt.lower()
+    return any(keyword in prompt_lower for keyword in agentic_keywords)
 
 def route(prompt: str):
     prompt_lower = prompt.lower().strip()
@@ -47,6 +67,60 @@ def route(prompt: str):
     # Memory management
     if any(phrase in prompt_lower for phrase in ["clear memory", "start over", "new chat", "forget everything"]):
         return clear_memory()
+
+    # Agentic requests - route to Hermes if available or if in agentic mode
+    if HERMES_AVAILABLE and (is_agentic_request(prompt) or get_current_mode() == "agentic"):
+        try:
+            hermes_response = hermes_chat(prompt)
+            if hermes_response:
+                return f"[Agentic Mode] {hermes_response}"
+            else:
+                return "Agentic capabilities are currently unavailable. Falling back to standard mode."
+        except Exception as e:
+            print(f"Hermes error: {e}")
+            return f"Agentic system encountered an error: {str(e)}. Using standard mode instead."
+    
+    # Fallback agentic handling when Hermes is not available but we're in agentic mode
+    if get_current_mode() == "agentic" and not HERMES_AVAILABLE:
+        try:
+            from agentic_executor import get_agentic_executor
+            from agentic_tools import get_agentic_tools
+            from permission_system import get_permission_system
+            
+            # Get the components
+            tools_instance = get_agentic_tools()
+            perm_system = get_permission_system()
+            executor = get_agentic_executor(None, perm_system)
+            
+            # Map agentic_tools methods to executor tools
+            tool_mapping = {
+                "list_files": tools_instance.list_files,
+                "read_file": tools_instance.read_file,
+                "write_file": tools_instance.write_file,
+                "rename_file": tools_instance.rename_file,
+                "delete_file": tools_instance.delete_file,
+                "create_directory": tools_instance.create_directory,
+                "organize_files": tools_instance.organize_files,
+                "run_command": tools_instance.run_command,
+                "get_system_info": tools_instance.get_system_info,
+                "web_search": tools_instance.web_search,
+            }
+            executor.tools = tool_mapping
+            
+            # Create and execute a simple task
+            task = executor.create_task(prompt)
+            if executor.plan_task(task):
+                results = executor.execute_task(task)
+                if results["success"]:
+                    return f"[Local Agentic] Task completed: {results['final_result']}"
+                else:
+                    return f"[Local Agentic] Task encountered issues: {results.get('error', 'Unknown error')}"
+            else:
+                return f"[Local Agentic] Could not plan task: {task.error_message}"
+                
+        except Exception as e:
+            print(f"Local agentic error: {e}")
+            return f"Local agentic system encountered an error: {str(e)}. Using standard mode instead."
 
     # GIF generation (check before image generation since it's more specific)
     if GIF_GEN_AVAILABLE and is_gif_request(prompt):
