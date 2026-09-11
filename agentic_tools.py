@@ -223,6 +223,7 @@ class AgenticTools:
             # Get all files
             files = [f for f in source.glob("*") if f.is_file()]
             organized_count = 0
+            skipped_count = 0
             
             for file in files:
                 # Skip if already in target
@@ -237,13 +238,16 @@ class AgenticTools:
                 ext_dir = target / ext
                 ext_dir.mkdir(exist_ok=True)
                 
-                # Move file
+                # Move file (skip if destination already exists)
                 new_path = ext_dir / file.name
-                file.rename(new_path)
-                organized_count += 1
+                if not new_path.exists():
+                    file.rename(new_path)
+                    organized_count += 1
+                else:
+                    skipped_count += 1
             
-            self._log_operation("organize_files", f"Organized {organized_count} files from {source} to {target}")
-            return f"Organized {organized_count} files into {target}"
+            self._log_operation("organize_files", f"Organized {organized_count} files from {source} to {target}, skipped {skipped_count}")
+            return f"Organized {organized_count} files into {target}, skipped {skipped_count} existing files"
         except Exception as e:
             self._log_operation("organize_files", f"Error: {str(e)}", False)
             return f"Error organizing files: {str(e)}"

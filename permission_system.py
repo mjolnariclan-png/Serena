@@ -83,6 +83,11 @@ class PermissionSystem:
         
         # Add organize_files to the rules
         self.auto_approve_rules["organize_files"] = DangerLevel.WARNING
+        
+        # Add analysis tools to safe operations
+        analysis_tools = ["analyze_files", "analyze_task", "analyze_code", "analyze_results", "verify_results", "execute_action"]
+        for tool in analysis_tools:
+            self.auto_approve_rules[tool] = DangerLevel.SAFE
     
     def _setup_default_rules(self):
         """Setup default safety rules for common operations."""

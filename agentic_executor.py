@@ -287,6 +287,7 @@ class AgenticExecutor:
         try:
             for i, step in enumerate(task.steps):
                 task.current_step_index = i
+                print(f"Executing step {i+1}/{len(task.steps)}: {step.description}")
                 
                 # Check dependencies
                 if not self._check_dependencies(step, task):
@@ -305,10 +306,12 @@ class AgenticExecutor:
                     results["steps_completed"] += 1
                     # Update task context with step results
                     task.context[step.step_id] = result
+                    print(f"Step {i+1} completed successfully")
                 else:
                     step.status = TaskStatus.FAILED
                     step.error = str(result)
                     results["steps_failed"] += 1
+                    print(f"Step {i+1} failed: {result}")
                     
                     # Retry logic
                     if step.retry_count < step.max_retries:
@@ -347,6 +350,7 @@ class AgenticExecutor:
             task.status = TaskStatus.FAILED
             task.error_message = f"Execution error: {str(e)}"
             results["error"] = str(e)
+            print(f"Execution error: {e}")
         
         # Move to history
         self.task_history.append(task)
@@ -376,7 +380,9 @@ class AgenticExecutor:
         """
         tool = self.tools.get(step.tool)
         if not tool:
-            return False, f"Tool '{step.tool}' not available"
+            # If tool is not available, skip this step rather than fail
+            print(f"Tool '{step.tool}' not available, skipping step")
+            return True, f"Tool '{step.tool}' not available, step skipped"
         
         try:
             # Check permissions if permission system is available

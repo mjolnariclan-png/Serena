@@ -12,25 +12,33 @@ from pathlib import Path
 HERMES_PATH = Path(r"C:\Users\mille\AppData\Local\hermes\hermes-agent")
 HERMES_VENV = Path(r"C:\Users\mille\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages")
 
-if HERMES_PATH.exists():
-    sys.path.insert(0, str(HERMES_PATH))
-    print(f"Added Hermes path: {HERMES_PATH}")
-else:
-    print(f"Hermes path not found: {HERMES_PATH}")
+# Temporarily disable Hermes due to dependency issues
+# Using local agentic system instead
+HERMES_AVAILABLE = False
+print("Hermes Agent temporarily disabled due to dependency issues. Using local agentic system.")
 
-if HERMES_VENV.exists():
-    sys.path.insert(0, str(HERMES_VENV))
-    print(f"Added Hermes venv path: {HERMES_VENV}")
-else:
-    print(f"Hermes venv path not found: {HERMES_VENV}")
-
-try:
-    from run_agent import AIAgent
-    HERMES_AVAILABLE = True
-    print("Hermes Agent successfully imported")
-except ImportError as e:
-    HERMES_AVAILABLE = False
-    print(f"Hermes Agent not available: {e}. Install and configure Hermes for advanced agentic features.")
+# if HERMES_PATH.exists():
+#     sys.path.insert(0, str(HERMES_PATH))
+#     print(f"Added Hermes path: {HERMES_PATH}")
+# else:
+#     print(f"Hermes path not found: {HERMES_PATH}")
+#
+# if HERMES_VENV.exists():
+#     sys.path.insert(0, str(HERMES_VENV))
+#     print(f"Added Hermes venv path: {HERMES_VENV}")
+# else:
+#     print(f"Hermes venv path not found: {HERMES_VENV}")
+#
+# try:
+#     from run_agent import AIAgent
+#     HERMES_AVAILABLE = True
+#     print("Hermes Agent successfully imported")
+# except ImportError as e:
+#     HERMES_AVAILABLE = False
+#     print(f"Hermes Agent not available: {e}. Install and configure Hermes for advanced agentic features.")
+# except Exception as e:
+#     HERMES_AVAILABLE = False
+#     print(f"Hermes Agent initialization error: {e}. Using local agentic system instead.")
 
 
 class HermesAgent:
