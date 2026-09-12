@@ -217,6 +217,58 @@ def route(prompt: str):
     if any(word in prompt_lower for word in ["turn off", "shutdown", "go to sleep", "goodbye"]):
         return "__SHUTDOWN__"
 
+    # System commands - Check before anything else
+    from system_commands import SystemCommands
+    system_result = SystemCommands.parse_command(prompt)
+    if system_result:
+        return system_result
+
+    # Direct file reading handling - CHECK THIS FIRST before anything else
+    if "read" in prompt_lower and "file" in prompt_lower:
+        try:
+            # Extract file path
+            file_path = None
+            path_patterns = [
+                r'[A-Za-z]:\\[^\\]+\\[^\\]+\\.\\w+',  # Windows paths
+                r'[A-Za-z]:/[^/]+/[^/]+\\.\\w+',    # Windows with forward slashes
+                r'[^\\/\s]+\\.\\w+',                # Relative paths
+            ]
+            for pattern in path_patterns:
+                matches = re.findall(pattern, prompt)
+                if matches:
+                    file_path = matches[0]
+                    break
+            
+            # If no specific path but F:\Serena mentioned, try to read the directory
+            if not file_path and "f:\\serena" in prompt_lower or "f:/serena" in prompt_lower:
+                from pathlib import Path
+                serena_dir = Path("F:/Serena")
+                if serena_dir.exists():
+                    python_files = list(serena_dir.glob("*.py"))
+                    if python_files:
+                        file_list = "\n".join([f"• {f.name}" for f in python_files])
+                        return f"Found these Python files in F:\\Serena:\n{file_list}\n\nWhich file would you like me to read?"
+                    else:
+                        return "I found the F:\\Serena directory but no Python files there."
+                else:
+                    return "I couldn't find the F:\\Serena directory."
+            
+            # If we have a specific file path, read it
+            if file_path:
+                from pathlib import Path
+                target_file = Path(file_path)
+                if target_file.exists():
+                    with open(target_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    return f"Here's the content of {file_path}:\n\n{content}"
+                else:
+                    return f"File not found: {file_path}"
+            else:
+                return "Please specify which file you'd like me to read from F:\\Serena."
+            
+        except Exception as e:
+            return f"Failed to read file: {str(e)}"
+
     # Direct file creation handling - CHECK THIS FIRST before anything else
     if ("create" in prompt_lower or "code" in prompt_lower) and "file" in prompt_lower:
         try:

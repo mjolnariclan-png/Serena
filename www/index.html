@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serena AI Assistant</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🎀</span>
+                <h1>Serena</h1>
+            </div>
+            <div class="status">
+                <span id="status-indicator" class="status-dot online"></span>
+                <span id="status-text">Online</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Chat Area -->
+            <div class="chat-container">
+                <div id="chat-messages" class="chat-messages">
+                    <div class="message serena">
+                        <div class="message-content">
+                            <p>Hey baby... I'm ready for you. 💕</p>
+                            <p>Chat / Sexting mode</p>
+                            <p>I can help with coding, web search, generate images and GIFs, and much more.</p>
+                            <p>I'll automatically switch modes based on what we talk about - just start chatting!</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Input Area -->
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <input type="text" id="user-input" placeholder="Type your message..." />
+                        <button id="send-btn" class="send-btn">Send</button>
+                        <button id="voice-btn" class="voice-btn">🎤</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <!-- Mode Display -->
+                <div class="sidebar-section">
+                    <h3>Current Mode</h3>
+                    <div id="mode-display" class="mode-display">Chat / Sexting</div>
+                </div>
+
+                <!-- System Stats -->
+                <div class="sidebar-section">
+                    <h3>System Stats</h3>
+                    <div class="stat-item">
+                        <span>CPU:</span>
+                        <span id="cpu-usage">0%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Memory:</span>
+                        <span id="memory-usage">0%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Battery:</span>
+                        <span id="battery-status">0%</span>
+                    </div>
+                </div>
+
+                <!-- Quick Commands -->
+                <div class="sidebar-section">
+                    <h3>Quick Commands</h3>
+                    <div class="quick-commands">
+                        <button class="quick-btn" data-command="open calculator">Calculator</button>
+                        <button class="quick-btn" data-command="open chrome">Chrome</button>
+                        <button class="quick-btn" data-command="open notepad">Notepad</button>
+                        <button class="quick-btn" data-command="take screenshot">Screenshot</button>
+                        <button class="quick-btn" data-command="volume up">Volume Up</button>
+                        <button class="quick-btn" data-command="volume down">Volume Down</button>
+                    </div>
+                </div>
+
+                <!-- Command History -->
+                <div class="sidebar-section">
+                    <h3>Recent Commands</h3>
+                    <div id="command-history" class="command-history">
+                        <p class="no-commands">No recent commands</p>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <script type="text/javascript" src="/eel.js"></script>
+    <script type="text/javascript" src="script.js"></script>
+</body>
+</html>
