@@ -223,6 +223,79 @@ def route(prompt: str):
     if system_result:
         return system_result
 
+    # Web search handling - Check before voice/file operations
+    from web_search import is_search_query, extract_search_query, search_web
+    if is_search_query(prompt):
+        search_query = extract_search_query(prompt)
+        # Check if specific browser mentioned
+        if "chrome" in prompt_lower:
+            return search_web(search_query, open_in_browser=True)
+        else:
+            return search_web(search_query, open_in_browser=True)
+
+    # Face recognition handling
+    if "enroll" in prompt_lower and "face" in prompt_lower:
+        from face_recognition import FaceRecognizer
+        recognizer = FaceRecognizer()
+        # Extract name from prompt
+        import re
+        name_match = re.search(r'enroll\s+(?:face\s+(?:for\s+)?)?(\w+)', prompt_lower)
+        if name_match:
+            name = name_match.group(1)
+            # Capitalize first letter
+            name = name.capitalize()
+            return recognizer.enroll_face(name)
+        else:
+            return "Please specify a name. Example: 'enroll face for John'"
+    
+    if "recognize" in prompt_lower and "face" in prompt_lower:
+        from face_recognition import FaceRecognizer
+        recognizer = FaceRecognizer()
+        recognized = recognizer.capture_and_recognize()
+        if recognized:
+            return f"Recognized: {recognized}"
+        else:
+            return "Could not recognize face"
+    
+    if "list" in prompt_lower and "faces" in prompt_lower:
+        from face_recognition import FaceRecognizer
+        recognizer = FaceRecognizer()
+        faces = recognizer.list_enrolled_faces()
+        if faces:
+            return f"Enrolled faces: {', '.join(faces)}"
+        else:
+            return "No faces enrolled yet"
+    
+    if "remove" in prompt_lower and "face" in prompt_lower:
+        from face_recognition import FaceRecognizer
+        recognizer = FaceRecognizer()
+        # Extract name from prompt
+        import re
+        name_match = re.search(r'remove\s+(?:face\s+(?:for\s+)?)?(\w+)', prompt_lower)
+        if name_match:
+            name = name_match.group(1).capitalize()
+            return recognizer.remove_face(name)
+        else:
+            return "Please specify a name. Example: 'remove face for John'"
+
+    # Voice change handling
+    if "change voice" in prompt_lower or "use voice" in prompt_lower or "switch voice" in prompt_lower:
+        from voice_enhanced import set_voice, list_voices
+        # Extract voice name from prompt
+        import re
+        voice_match = re.search(r'(?:change|use|switch)\s*(?:to\s*)?(\w+)\s*voice', prompt_lower)
+        if voice_match:
+            voice_name = voice_match.group(1)
+            return set_voice(voice_name)
+        else:
+            return f"Available voices: {', '.join(list_voices())}. Say 'change voice to [voice name]' to switch."
+    
+    # List voices command
+    if "list voices" in prompt_lower or "what voices" in prompt_lower or "available voices" in prompt_lower:
+        from voice_enhanced import list_voices
+        voices = list_voices()
+        return f"Available voices: {', '.join(voices)}"
+
     # Direct file reading handling - CHECK THIS FIRST before anything else
     if "read" in prompt_lower and "file" in prompt_lower:
         try:

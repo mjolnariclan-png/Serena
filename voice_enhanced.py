@@ -29,6 +29,80 @@ EMOTION_VOICES = {
     "flirty": "en-US-AriaNeural"
 }
 
+# Available voices
+AVAILABLE_VOICES = {
+    "Jenny": "en-US-JennyNeural",
+    "Aria": "en-US-AriaNeural",
+    "Guy": "en-US-GuyNeural",
+    "Emma": "en-US-EmmaNeural",
+    "Sara": "en-US-SaraNeural",
+    "Tony": "en-US-TonyNeural",
+    "Nova": "en-US-NovaNeural",
+    "Sonora": "en-US-SonoraNeural",
+    "JennyMultilingual": "en-US-JennyMultilingualNeural",
+    "Ava": "en-US-AvaMultilingualNeural",
+    "AvaMultilingual": "en-US-AvaMultilingualNeural",
+    "Michelle": "en-US-MichelleNeural",
+    "Roger": "en-US-RogerNeural",
+    "Steffan": "en-US-SteffanNeural",
+    "Ana": "en-US-AnaNeural",
+    "Andrew": "en-US-AndrewNeural",
+    "Brian": "en-US-BrianNeural",
+    "Christopher": "en-US-ChristopherNeural",
+    "Eric": "en-US-EricNeural",
+    "Jacob": "en-US-JacobNeural",
+    "Davis": "en-US-DavisNeural",
+    "Jane": "en-US-JaneNeural",
+    "Jason": "en-US-JasonNeural",
+    "Nancy": "en-US-NancyNeural",
+    "Amber": "en-US-AmberNeural",
+    "AnaMultilingual": "en-US-AnaMultilingualNeural",
+    "Brandon": "en-US-BrandonNeural",
+    "ChristopherNeural": "en-US-ChristopherNeural",
+    "Corinne": "en-US-CorinneNeural",
+    "DavisMultilingual": "en-US-DavisMultilingualNeural",
+    "Elizabeth": "en-US-ElizabethNeural",
+    "EricMultilingual": "en-US-EricMultilingualNeural",
+    "GuyMultilingual": "en-US-GuyMultilingualNeural",
+    "JacobMultilingual": "en-US-JacobMultilingualNeural",
+    "JasonMultilingual": "en-US-JasonMultilingualNeural",
+    "MichelleMultilingual": "en-US-MichelleMultilingualNeural",
+    "NancyMultilingual": "en-US-NancyMultilingualNeural",
+    "RogerMultilingual": "en-US-RogerMultilingualNeural",
+    "SteffanMultilingual": "en-US-SteffanMultilingualNeural",
+    "TonyMultilingual": "en-US-TonyMultilingualNeural"
+}
+
+# Current selected voice
+current_voice = "en-US-JennyNeural"
+
+def set_voice(voice_name):
+    """Set the current voice"""
+    global current_voice
+    voice_name_lower = voice_name.lower()
+    
+    # Try to find matching voice
+    for name, voice_id in AVAILABLE_VOICES.items():
+        if voice_name_lower in name.lower():
+            current_voice = voice_id
+            return f"Voice changed to {name}"
+    
+    # Try direct voice ID match
+    if voice_name in AVAILABLE_VOICES.values():
+        current_voice = voice_name
+        return f"Voice changed to {voice_name}"
+    
+    return f"Voice '{voice_name}' not found. Available voices: {', '.join(AVAILABLE_VOICES.keys())}"
+
+def get_current_voice():
+    """Get the current voice"""
+    global current_voice
+    return current_voice
+
+def list_voices():
+    """List all available voices"""
+    return list(AVAILABLE_VOICES.keys())
+
 def detect_emotion(text):
     """Detect emotion from text using sentiment analysis"""
     try:
@@ -66,8 +140,11 @@ def get_emotion_voice(emotion, context="chat"):
 # --------------------
 
 async def _speak_async(text, emotion=None, context="chat"):
-    detected_emotion = emotion or detect_emotion(text)
-    voice = get_emotion_voice(detected_emotion, context)
+    # Use emotion-based voice if emotion specified, otherwise use current voice
+    if emotion:
+        voice = get_emotion_voice(emotion, context)
+    else:
+        voice = current_voice
     
     communicate = edge_tts.Communicate(text, voice)
 

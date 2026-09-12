@@ -33,14 +33,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function sendMessage() {
     const userInput = document.getElementById('user-input');
+    const voiceEnabled = document.getElementById('voice-enabled').checked;
     const message = userInput.value.trim();
     
     if (message) {
         addUserMessage(message);
         userInput.value = '';
         
-        // Send to Python backend
-        eel.process_message(message)(function(response) {
+        // Send to Python backend with voice enabled flag
+        eel.process_message(message, voiceEnabled)(function(response) {
             addSerenaMessage(response);
             updateCommandHistory(message);
         });

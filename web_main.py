@@ -61,7 +61,7 @@ def get_recent_commands(limit=10):
 init_database()
 
 @eel.expose
-def process_message(message):
+def process_message(message, voice_enabled=True):
     """Process user message and return response"""
     try:
         response = route(message)
@@ -72,9 +72,22 @@ def process_message(message):
         mode_config = get_mode_config(mode)
         eel.updateMode(mode_config['label'])(lambda x: None)
         
+        # Speak the response if voice is enabled
+        if voice_enabled:
+            speak_response(response, mode)
+        
         return response
     except Exception as e:
         return f"Error processing message: {str(e)}"
+
+def speak_response(text, mode="chat"):
+    """Speak the response using TTS"""
+    try:
+        from voice_enhanced import speak, detect_emotion
+        emotion = detect_emotion(text)
+        speak(text, emotion=emotion, context=mode)
+    except Exception as e:
+        print(f"Voice synthesis error: {e}")
 
 @eel.expose
 def voice_input():

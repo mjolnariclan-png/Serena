@@ -1,14 +1,31 @@
 import requests
 from bs4 import BeautifulSoup
 import re
+import webbrowser
+from pathlib import Path
 
-def search_web(query: str, num_results: int = 3) -> str:
+def search_web(query: str, num_results: int = 3, open_in_browser=True) -> str:
     """
     Search the web and return summarized results.
     Uses DuckDuckGo (no API key needed) for privacy-focused local search.
+    Optionally opens the search in Chrome browser.
     """
     try:
-        # Use DuckDuckGo's HTML version (no API key required)
+        # Construct Google search URL
+        search_url = f"https://www.google.com/search?q={query}"
+        
+        # Open in Chrome if requested
+        if open_in_browser:
+            try:
+                chrome_path = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+                if Path(chrome_path).exists():
+                    webbrowser.get('chrome').open(search_url)
+                else:
+                    webbrowser.open(search_url)
+            except:
+                webbrowser.open(search_url)
+        
+        # Use DuckDuckGo's HTML version for getting results (no API key required)
         url = f"https://html.duckduckgo.com/html/?q={query}"
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -36,9 +53,9 @@ def search_web(query: str, num_results: int = 3) -> str:
                 continue
         
         if not results:
-            return "I couldn't find any results for that search."
+            return f"I've opened the search in Chrome for: '{query}'"
         
-        return f"Here's what I found about '{query}':\n\n" + "\n\n".join(results)
+        return f"I've opened the search in Chrome for: '{query}'\n\nHere's what I found:\n\n" + "\n\n".join(results)
     
     except requests.RequestException as e:
         return f"Sorry, I couldn't connect to search right now. Error: {str(e)}"
@@ -49,11 +66,14 @@ def search_web(query: str, num_results: int = 3) -> str:
 def is_search_query(text: str) -> bool:
     """
     Determine if a query should trigger web search.
+    More comprehensive detection of search intents.
     """
     search_indicators = [
         "search for", "find", "look up", "what is", "who is", 
-        "when did", "where is", "how do i", "define", 
-        "latest", "news about", "current", "recent"
+        "when did", "where is", "how do i", "how to", "define", 
+        "latest", "news about", "current", "recent", "recipe",
+        "instructions", "tutorial", "guide", "explain", "tell me about",
+        "google", "search", "look for", "find out", "information about"
     ]
     
     text_lower = text.lower()
@@ -63,15 +83,30 @@ def is_search_query(text: str) -> bool:
 def extract_search_query(text: str) -> str:
     """
     Extract the actual search query from user input.
+    Handles natural language patterns like "look up how to make pasta on chrome"
     """
-    # Remove common search prefixes
-    prefixes = ["search for", "find", "look up", "what is", "who is", 
-                "when did", "where is", "how do i", "define", 
-                "search about", "tell me about"]
-    
     text_lower = text.lower()
+    
+    # Remove common search prefixes and suffixes
+    prefixes = ["search for", "find", "look up", "what is", "who is", 
+                "when did", "where is", "how do i", "how to", "define", 
+                "search about", "tell me about", "google", "look for", "find out"]
+    
+    suffixes = ["on chrome", "in chrome", "using chrome", "on google", "in google", 
+                "on the internet", "online", "on the web"]
+    
+    # Remove prefixes
     for prefix in prefixes:
         if text_lower.startswith(prefix):
-            return text[len(prefix):].strip()
+            text = text[len(prefix):].strip()
+            text_lower = text.lower()
+            break
+    
+    # Remove suffixes
+    for suffix in suffixes:
+        if text_lower.endswith(suffix):
+            text = text[:-len(suffix)].strip()
+            text_lower = text.lower()
+            break
     
     return text.strip()

@@ -31,6 +31,9 @@ class SerenaApp:
         self.continuous_conversation = None
         self.continuous_active = False
 
+        # ── VOICE SETTINGS ─────────────────────────────────
+        self.voice_output_enabled = True  # Voice enabled by default
+
         # ── SYSTEM TRAY ───────────────────────────────────
         self.setup_system_tray()
 
@@ -220,6 +223,12 @@ class SerenaApp:
                        selectcolor="#2d2d2d", font=("Segoe UI", 9),
                        command=self.toggle_input).pack(side=tk.RIGHT, padx=(0, 10))
         
+        # Voice output toggle
+        self.voice_output_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(top_bar, text="🔊", variable=self.voice_output_var,
+                       fg="white", bg="#1e1e1e", selectcolor="#2d2d2d",
+                       font=("Segoe UI", 9), command=self.toggle_voice_output).pack(side=tk.RIGHT, padx=(0, 10))
+        
         # Continuous conversation indicator
         self.conv_label = tk.Label(top_bar, text="", fg="#ff9800",
                                    bg="#1e1e1e", font=("Segoe UI", 9))
@@ -316,6 +325,12 @@ class SerenaApp:
             self.send_btn.pack_forget()
             self.listen_btn.pack(fill=tk.X)
 
+    def toggle_voice_output(self):
+        """Toggle voice output on/off"""
+        self.voice_output_enabled = self.voice_output_var.get()
+        status = "enabled" if self.voice_output_enabled else "disabled"
+        self.add_message("Serena", f"Voice output {status}")
+
     def _load_voice(self):
         if not self.voice_loaded:
             from voice_enhanced import listen, speak, ContinuousConversation
@@ -326,7 +341,7 @@ class SerenaApp:
 
     def _speak(self, text, emotion=None):
         print("Serena:", text)
-        if self.input_method.get() == "voice":
+        if self.voice_output_enabled:
             self._load_voice()
             if self.speak:
                 self.speak(text, emotion=emotion, context="chat")
