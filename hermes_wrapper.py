@@ -12,33 +12,31 @@ from pathlib import Path
 HERMES_PATH = Path(r"C:\Users\mille\AppData\Local\hermes\hermes-agent")
 HERMES_VENV = Path(r"C:\Users\mille\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages")
 
-# Temporarily disable Hermes due to dependency issues
-# Using local agentic system instead
+# Try to enable Hermes Agent
 HERMES_AVAILABLE = False
-print("Hermes Agent temporarily disabled due to dependency issues. Using local agentic system.")
 
-# if HERMES_PATH.exists():
-#     sys.path.insert(0, str(HERMES_PATH))
-#     print(f"Added Hermes path: {HERMES_PATH}")
-# else:
-#     print(f"Hermes path not found: {HERMES_PATH}")
-#
-# if HERMES_VENV.exists():
-#     sys.path.insert(0, str(HERMES_VENV))
-#     print(f"Added Hermes venv path: {HERMES_VENV}")
-# else:
-#     print(f"Hermes venv path not found: {HERMES_VENV}")
-#
-# try:
-#     from run_agent import AIAgent
-#     HERMES_AVAILABLE = True
-#     print("Hermes Agent successfully imported")
-# except ImportError as e:
-#     HERMES_AVAILABLE = False
-#     print(f"Hermes Agent not available: {e}. Install and configure Hermes for advanced agentic features.")
-# except Exception as e:
-#     HERMES_AVAILABLE = False
-#     print(f"Hermes Agent initialization error: {e}. Using local agentic system instead.")
+if HERMES_PATH.exists():
+    sys.path.insert(0, str(HERMES_PATH))
+    print(f"Added Hermes path: {HERMES_PATH}")
+else:
+    print(f"Hermes path not found: {HERMES_PATH}")
+
+if HERMES_VENV.exists():
+    sys.path.insert(0, str(HERMES_VENV))
+    print(f"Added Hermes venv path: {HERMES_VENV}")
+else:
+    print(f"Hermes venv path not found: {HERMES_VENV}")
+
+try:
+    from run_agent import AIAgent
+    HERMES_AVAILABLE = True
+    print("Hermes Agent successfully imported")
+except ImportError as e:
+    HERMES_AVAILABLE = False
+    print(f"Hermes Agent not available: {e}. Install and configure Hermes for advanced agentic features.")
+except Exception as e:
+    HERMES_AVAILABLE = False
+    print(f"Hermes Agent initialization error: {e}. Using local agentic system instead.")
 
 
 class HermesAgent:
@@ -61,7 +59,10 @@ class HermesAgent:
         """Initialize the Hermes Agent with local Ollama configuration."""
         try:
             self.agent = AIAgent(
+                provider='custom',
+                base_url='http://127.0.0.1:11434/v1',
                 model=self.model,
+                max_iterations=500,
                 quiet_mode=self.quiet_mode,
                 # Disable features that Serena already handles
                 skip_context_files=True,  # Serena manages her own context
@@ -74,21 +75,55 @@ class HermesAgent:
     
     def chat(self, message, conversation_history=None):
         """
-        Send a message to Hermes Agent and get a response.
-        
-        Args:
-            message: The user's message
-            conversation_history: Optional conversation history for context
-            
-        Returns:
-            str: The agent's response
+        Send a message to Hermes Agent and return the final text response.
         """
         if not self.agent:
             self._initialize_agent()
-        
+
         try:
-            response = self.agent.chat(message)
-            return response
+            response = self.agent.run_conversation(
+                message,
+                conversation_history=conversation_history
+            )
+
+            # Normal Hermes conversation result
+            if isinstance(response, dict):
+                final_response = response.get("final_response")
+
+                if final_response:
+                    # Hermes may return its response as a JSON function envelope
+                    if isinstance(final_response, str):
+                        try:
+                            import json
+                            parsed = json.loads(final_response)
+
+                            if (
+                                isinstance(parsed, dict)
+                                and parsed.get("type") == "function"
+                                and parsed.get("function") == "response"
+                            ):
+                                return parsed.get("parameters", {}).get(
+                                    "body",
+                                    final_response
+                                )
+
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+
+                    return str(final_response)
+
+                # Handle a response envelope returned directly
+                if (
+                    response.get("type") == "function"
+                    and response.get("function") == "response"
+                ):
+                    return response.get("parameters", {}).get(
+                        "body",
+                        str(response)
+                    )
+
+            return str(response)
+
         except Exception as e:
             print(f"Hermes Agent chat error: {e}")
             return f"I encountered an issue with my agentic capabilities: {str(e)}"
@@ -127,8 +162,10 @@ class HermesAgent:
         if self.agent:
             return {
                 "model": self.model,
+                "provider": "custom (Ollama)",
+                "base_url": "http://127.0.0.1:11434/v1",
                 "available": True,
-                "capabilities": ["tool_calling", "file_operations", "web_browsing", "memory"]
+                "capabilities": ["tool_calling", "file_operations", "web_browsing", "memory", "browser_automation", "code_execution"]
             }
         return {
             "model": self.model,
@@ -173,18 +210,16 @@ if __name__ == "__main__":
     
     if is_hermes_available():
         print("Hermes Agent is available!")
-        agent = get_hermes_agent()
-        
-        if agent and agent.is_available():
-            print("Agent initialized successfully")
-            print(f"Model info: {agent.get_model_info()}")
+        try:
+            agent = get_hermes_agent()
             
-            # Test a simple chat
-            test_message = "Hello, can you help me organize my files?"
-            print(f"\nTesting chat with: '{test_message}'")
-            response = agent.chat(test_message)
-            print(f"Response: {response}")
-        else:
-            print("Agent initialization failed")
+            if agent and agent.is_available():
+                print("Agent initialized successfully")
+                print(f"Model info: {agent.get_model_info()}")
+                print("Hermes Agent is ready for use!")
+            else:
+                print("Agent initialization failed")
+        except Exception as e:
+            print(f"Agent initialization error: {e}")
     else:
         print("Hermes Agent is not available")

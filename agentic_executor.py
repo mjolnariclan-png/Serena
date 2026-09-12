@@ -5,6 +5,7 @@ This module implements the planning/execution loop for multi-step agentic tasks.
 
 import json
 import time
+import re
 from typing import Dict, List, Optional, Callable, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
@@ -196,43 +197,118 @@ class AgenticExecutor:
                 )
             ]
         
-        elif "search" in goal_lower and "web" in goal_lower:
-            steps = [
-                TaskStep(
+        elif "search" in goal_lower and ("web" in goal_lower or "google" in goal_lower or "youtube" in goal_lower or "xvideos" in goal_lower):
+            # Extract the actual search query
+            search_query = goal
+            # Remove common search prefixes
+            prefixes = ["search for", "google search for", "do a google search for", "do a search for", "search on", "can you do a search for"]
+            for prefix in prefixes:
+                if prefix in goal_lower:
+                    search_query = goal[goal_lower.find(prefix) + len(prefix):].strip()
+                    break
+            
+            # Remove platform words from search query
+            platform_words = ["on youtube", "on youtube.com", "on google", "on xvideos", "using chrome", "on chrome", "on google.com"]
+            for word in platform_words:
+                search_query = search_query.replace(word, "").strip()
+            
+            # Extract URL if mentioned
+            url = None
+            domain_pattern = r'\b([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b'
+            matches = re.findall(domain_pattern, goal)
+            if matches:
+                complete_matches = [m for m in matches if '.' in m and len(m.split('.')[-1]) >= 2]
+                if complete_matches:
+                    url = max(complete_matches, key=len)
+                    if not url.startswith("http"):
+                        url = f"http://{url}"
+            
+            steps = []
+            
+            # Add web search step if we have a query
+            if search_query and len(search_query) > 2:
+                steps.append(TaskStep(
                     step_id="step_1",
-                    description="Perform web search",
+                    description=f"Perform web search for: {search_query}",
                     tool="web_search",
-                    parameters={"query": goal}
-                ),
-                TaskStep(
-                    step_id="step_2",
-                    description="Analyze search results",
-                    tool="analyze_results",
-                    parameters={}
-                )
-            ]
+                    parameters={"query": search_query}
+                ))
+            
+            # Add browser opening step if URL found
+            if url:
+                steps.append(TaskStep(
+                    step_id="step_2" if steps else "step_1",
+                    description=f"Open {url} in browser",
+                    tool="open_browser",
+                    parameters={"url": url}
+                ))
+            
+            # If no steps were created, provide a generic response
+            if not steps:
+                steps = [
+                    TaskStep(
+                        step_id="step_1",
+                        description="Analyze search request",
+                        tool="analyze_task",
+                        parameters={"goal": goal}
+                    )
+                ]
         
-        elif "code" in goal_lower or "debug" in goal_lower:
-            steps = [
-                TaskStep(
+        elif "code" in goal_lower or "debug" in goal_lower or ("file" in goal_lower and "create" in goal_lower):
+            # Extract file path if mentioned
+            file_path = None
+            if "save" in goal_lower or "create" in goal_lower:
+                # Look for file paths
+                import re
+                # Match common file path patterns
+                path_patterns = [
+                    r'[A-Za-z]:\\[^\\]+\\[^\\]+\\.\\w+',  # Windows paths like C:\Users\file.py
+                    r'[A-Za-z]:/[^/]+/[^/]+\\.\\w+',    # Windows paths with forward slashes
+                    r'[^\\/\s]+\\.\\w+',                # Relative paths like test.py
+                ]
+                for pattern in path_patterns:
+                    matches = re.findall(pattern, goal)
+                    if matches:
+                        file_path = matches[0]
+                        break
+            
+            # Extract file name if mentioned
+            file_name = None
+            if "file" in goal_lower and "labeled" in goal_lower:
+                # Extract file name after "labeled"
+                import re
+                labeled_match = re.search(r'labeled\s+(\S+)', goal_lower)
+                if labeled_match:
+                    file_name = labeled_match.group(1)
+            
+            steps = []
+            
+            # If we have file information, create a write step
+            if file_path or file_name:
+                # Generate the code content using AI and write file in one step
+                final_path = file_path if file_path else file_name
+                steps.append(TaskStep(
                     step_id="step_1",
-                    description="Analyze code or error",
-                    tool="read_file",
-                    parameters={}
-                ),
-                TaskStep(
-                    step_id="step_2",
-                    description="Identify issues and solutions",
-                    tool="analyze_code",
-                    parameters={}
-                ),
-                TaskStep(
-                    step_id="step_3",
-                    description="Apply fixes",
-                    tool="write_file",
-                    parameters={}
-                )
-            ]
+                    description=f"Generate code and create file: {final_path}",
+                    tool="generate_and_write_file",
+                    parameters={"goal": goal, "file_path": final_path}
+                ))
+            else:
+                # Generic coding assistance
+                steps = [
+                    TaskStep(
+                        step_id="step_1",
+                        description="Analyze coding request",
+                        tool="analyze_task",
+                        parameters={"goal": goal}
+                    ),
+                    TaskStep(
+                        step_id="step_2",
+                        description="Provide coding assistance",
+                        tool="execute_action",
+                        parameters={"goal": goal}
+                    )
+                ]
         
         else:
             # Generic plan for unknown tasks
@@ -339,12 +415,33 @@ class AgenticExecutor:
                 task.status = TaskStatus.COMPLETED
                 task.completed_at = time.time()
                 results["success"] = True
-                results["final_result"] = f"Task completed: {task.goal}"
+                
+                # Build a meaningful final result from the step results
+                step_results = []
+                for step in task.steps:
+                    if step.result:
+                        step_results.append(str(step.result))
+                
+                if step_results:
+                    results["final_result"] = " | ".join(step_results)
+                else:
+                    results["final_result"] = f"Task completed: {task.goal}"
+                    
             elif task.status != TaskStatus.FAILED:
                 task.status = TaskStatus.COMPLETED
                 task.completed_at = time.time()
                 results["success"] = True
-                results["final_result"] = f"Task partially completed: {results['steps_completed']}/{len(task.steps)} steps"
+                
+                # Build partial result
+                step_results = []
+                for step in task.steps:
+                    if step.result:
+                        step_results.append(str(step.result))
+                
+                if step_results:
+                    results["final_result"] = f"Partially completed: {' | '.join(step_results)}"
+                else:
+                    results["final_result"] = f"Task partially completed: {results['steps_completed']}/{len(task.steps)} steps"
             
         except Exception as e:
             task.status = TaskStatus.FAILED
@@ -396,7 +493,22 @@ class AgenticExecutor:
             
             # Execute the tool
             result = tool(**step.parameters)
-            return True, result
+            
+            # Handle different return types
+            if isinstance(result, str):
+                # String result means success with message
+                return True, result
+            elif isinstance(result, dict):
+                # Dict result - check for success/error fields
+                if "success" in result:
+                    return result["success"], result.get("error", result)
+                return True, result
+            elif isinstance(result, tuple):
+                # Tuple result - assume (success, result) format
+                return result
+            else:
+                # Other types - assume success
+                return True, result
             
         except Exception as e:
             return False, f"Tool execution error: {str(e)}"
