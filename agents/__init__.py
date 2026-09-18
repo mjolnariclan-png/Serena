@@ -20,7 +20,7 @@ def initialize_agent_system():
     
     manager = AgentManager(workspace)
     
-    # Import and register agents
+    # Import and register original agents
     try:
         from media.agent import MediaAgent
         media_agent = MediaAgent(workspace / "media")
@@ -41,6 +41,39 @@ def initialize_agent_system():
         manager.register_agent(photo_agent)
     except ImportError as e:
         print(f"Could not load PhotoAgent: {e}")
+    
+    # Phase 3: Register specialized agents
+    try:
+        from development.agent import DevelopmentAgent
+        temp_repo = workspace / "temp_repo"
+        temp_repo.mkdir(exist_ok=True)
+        dev_agent = DevelopmentAgent(workspace, temp_repo)
+        manager.register_agent(dev_agent)
+    except ImportError as e:
+        print(f"Could not load DevelopmentAgent: {e}")
+    
+    try:
+        from backup.agent import BackupAgent
+        temp_backup = workspace / "temp_backup"
+        temp_backup.mkdir(exist_ok=True)
+        backup_agent = BackupAgent(workspace, temp_backup)
+        manager.register_agent(backup_agent)
+    except ImportError as e:
+        print(f"Could not load BackupAgent: {e}")
+    
+    try:
+        from security.agent import SecurityAgent
+        security_agent = SecurityAgent(workspace)
+        manager.register_agent(security_agent)
+    except ImportError as e:
+        print(f"Could not load SecurityAgent: {e}")
+    
+    try:
+        from monitoring.agent import MonitoringAgent
+        monitoring_agent = MonitoringAgent(workspace)
+        manager.register_agent(monitoring_agent)
+    except ImportError as e:
+        print(f"Could not load MonitoringAgent: {e}")
     
     return manager
 

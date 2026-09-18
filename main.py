@@ -312,10 +312,183 @@ class SerenaApp:
             return
         
         try:
-            dashboard = self.agent_manager.generate_dashboard_report()
-            self.add_message(get_character()["name"], f"Agent System Status:\n{dashboard}")
+            # Phase 3: Enhanced agent dashboard
+            status = self.get_comprehensive_agent_status()
+            
+            self.add_message(get_character()["name"], f"🤖 Agent Ecosystem Status:\n{status}")
+            
         except Exception as e:
             self.add_message(get_character()["name"], f"Error getting agent status: {e}")
+    
+    def get_comprehensive_agent_status(self) -> str:
+        """
+        Get comprehensive agent ecosystem status for display.
+        
+        Phase 3: Enhanced dashboard with queue, events, and tasks.
+        
+        Returns:
+        Formatted status string
+        """
+        if not hasattr(self, 'agent_manager') or not self.agent_manager:
+            return "Agent system not available"
+        
+        try:
+            lines = []
+            
+            # Agent status
+            agent_status = self.agent_manager.get_all_agent_status()
+            lines.append("AGENTS:")
+            for agent_name, status in agent_status.get("agents", {}).items():
+                status_symbol = "●" if status["status"] == "working" else "○"
+                lines.append(f"  {status_symbol} {agent_name}: {status['status']}")
+                lines.append(f"      Tasks: {status['tasks_completed']}, Errors: {status['errors']}")
+            
+            # Queue status
+            queue_status = self.agent_manager.get_queue_status()
+            if queue_status.get("available"):
+                lines.append(f"\nTASK QUEUE:")
+                lines.append(f"  Queued tasks: {queue_status.get('queue_size', 0)}")
+                lines.append(f"  Blocked tasks: {len(queue_status.get('blocked_tasks', {}))}")
+                stats = queue_status.get("statistics", {})
+                lines.append(f"  Status breakdown: {stats.get('status_breakdown', {})}")
+            
+            # Agent capabilities
+            capabilities = self.agent_manager.get_agent_capabilities()
+            lines.append(f"\nAGENT CAPABILITIES:")
+            for agent_id, caps in capabilities.items():
+                lines.append(f"  {agent_id}:")
+                lines.append(f"    Type: {caps.get('agent_type', 'Unknown')}")
+                lines.append(f"    Tasks: {', '.join(caps.get('supported_task_types', []))}")
+            
+            # Scheduled tasks
+            scheduled = self.agent_manager.get_scheduled_tasks()
+            if scheduled:
+                lines.append(f"\nSCHEDULED TASKS:")
+                for task_id, schedule in scheduled.items():
+                    if schedule["active"]:
+                        lines.append(f"  {task_id}: {schedule['goal']}")
+                        lines.append(f"    Type: {schedule['schedule_type']}, Next run: {schedule['next_run']}")
+            
+            return "\n".join(lines)
+            
+        except Exception as e:
+            return f"Error: {str(e)}"
+    
+    def show_agent_dashboard(self):
+        """
+        Show a dedicated agent dashboard window.
+        
+        Phase 3: Comprehensive GUI dashboard for agent ecosystem.
+        """
+        if not hasattr(self, 'agent_manager') or not self.agent_manager:
+            self.add_message(get_character()["name"], "Agent system not available")
+            return
+        
+        # Create dashboard window
+        dashboard = tk.Toplevel(self.root)
+        dashboard.title("Agent Ecosystem Dashboard")
+        dashboard.geometry("900x600")
+        dashboard.configure(bg=self.current_theme["primary_bg"])
+        
+        # Create notebook for tabs
+        notebook = ttk.Notebook(dashboard)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Agents tab
+        agents_frame = tk.Frame(notebook, bg=self.current_theme["primary_bg"])
+        notebook.add(agents_frame, text="Agents")
+        
+        agents_text = scrolledtext.ScrolledText(agents_frame, bg=self.current_theme["secondary_bg"], 
+                                                  fg=self.current_theme["text_color"])
+        agents_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        agent_status = self.agent_manager.get_all_agent_status()
+        agents_text.insert(tk.END, "AGENT STATUS\n" + "="*50 + "\n")
+        for agent_name, status in agent_status.get("agents", {}).items():
+            agents_text.insert(tk.END, f"\n{agent_name}:\n")
+            agents_text.insert(tk.END, f"  Status: {status['status']}\n")
+            agents_text.insert(tk.END, f"  Tasks completed: {status['tasks_completed']}\n")
+            agents_text.insert(tk.END, f"  Errors: {status['errors']}\n")
+            if status.get("last_activity"):
+                agents_text.insert(tk.END, f"  Last activity: {status['last_activity']}\n")
+        
+        # Tasks tab
+        tasks_frame = tk.Frame(notebook, bg=self.current_theme["primary_bg"])
+        notebook.add(tasks_frame, text="Tasks")
+        
+        tasks_text = scrolledtext.ScrolledText(tasks_frame, bg=self.current_theme["secondary_bg"],
+                                                fg=self.current_theme["text_color"])
+        tasks_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        queue_status = self.agent_manager.get_queue_status()
+        tasks_text.insert(tk.END, "TASK QUEUE\n" + "="*50 + "\n")
+        if queue_status.get("available"):
+            tasks_text.insert(tk.END, f"\nQueue size: {queue_status.get('queue_size', 0)}\n")
+            tasks_text.insert(tk.END, f"Blocked tasks: {len(queue_status.get('blocked_tasks', {}))}\n")
+            stats = queue_status.get("statistics", {})
+            tasks_text.insert(tk.END, f"\nStatus breakdown:\n")
+            for status, count in stats.get("status_breakdown", {}).items():
+                tasks_text.insert(tk.END, f"  {status}: {count}\n")
+        
+        # Capabilities tab
+        caps_frame = tk.Frame(notebook, bg=self.current_theme["primary_bg"])
+        notebook.add(caps_frame, text="Capabilities")
+        
+        caps_text = scrolledtext.ScrolledText(caps_frame, bg=self.current_theme["secondary_bg"],
+                                               fg=self.current_theme["text_color"])
+        caps_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        capabilities = self.agent_manager.get_agent_capabilities()
+        caps_text.insert(tk.END, "AGENT CAPABILITIES\n" + "="*50 + "\n")
+        for agent_id, caps in capabilities.items():
+            caps_text.insert(tk.END, f"\n{agent_id}:\n")
+            caps_text.insert(tk.END, f"  Type: {caps.get('agent_type', 'Unknown')}\n")
+            caps_text.insert(tk.END, f"  Description: {caps.get('description', 'No description')}\n")
+            caps_text.insert(tk.END, f"  Supported tasks: {', '.join(caps.get('supported_task_types', []))}\n")
+        
+        # Refresh button
+        refresh_btn = tk.Button(dashboard, text="Refresh", command=lambda: self._refresh_dashboard(agents_text, tasks_text, caps_text),
+                               bg=self.current_theme["button_color"], fg="white")
+        refresh_btn.pack(pady=5)
+        
+        # Update hotkey to use dashboard
+        self.hotkeys['ctrl+shift+a'] = self.show_agent_dashboard
+    
+    def _refresh_dashboard(self, agents_text, tasks_text, caps_text):
+        """Refresh the dashboard content"""
+        # Clear and reload agents
+        agents_text.delete(1.0, tk.END)
+        agent_status = self.agent_manager.get_all_agent_status()
+        agents_text.insert(tk.END, "AGENT STATUS\n" + "="*50 + "\n")
+        for agent_name, status in agent_status.get("agents", {}).items():
+            agents_text.insert(tk.END, f"\n{agent_name}:\n")
+            agents_text.insert(tk.END, f"  Status: {status['status']}\n")
+            agents_text.insert(tk.END, f"  Tasks completed: {status['tasks_completed']}\n")
+            agents_text.insert(tk.END, f"  Errors: {status['errors']}\n")
+            if status.get("last_activity"):
+                agents_text.insert(tk.END, f"  Last activity: {status['last_activity']}\n")
+        
+        # Clear and reload tasks
+        tasks_text.delete(1.0, tk.END)
+        queue_status = self.agent_manager.get_queue_status()
+        tasks_text.insert(tk.END, "TASK QUEUE\n" + "="*50 + "\n")
+        if queue_status.get("available"):
+            tasks_text.insert(tk.END, f"\nQueue size: {queue_status.get('queue_size', 0)}\n")
+            tasks_text.insert(tk.END, f"Blocked tasks: {len(queue_status.get('blocked_tasks', {}))}\n")
+            stats = queue_status.get("statistics", {})
+            tasks_text.insert(tk.END, f"\nStatus breakdown:\n")
+            for status, count in stats.get("status_breakdown", {}).items():
+                tasks_text.insert(tk.END, f"  {status}: {count}\n")
+        
+        # Clear and reload capabilities
+        caps_text.delete(1.0, tk.END)
+        capabilities = self.agent_manager.get_agent_capabilities()
+        caps_text.insert(tk.END, "AGENT CAPABILITIES\n" + "="*50 + "\n")
+        for agent_id, caps in capabilities.items():
+            caps_text.insert(tk.END, f"\n{agent_id}:\n")
+            caps_text.insert(tk.END, f"  Type: {caps.get('agent_type', 'Unknown')}\n")
+            caps_text.insert(tk.END, f"  Description: {caps.get('description', 'No description')}\n")
+            caps_text.insert(tk.END, f"  Supported tasks: {', '.join(caps.get('supported_task_types', []))}\n")
 
     def toggle_continuous_conversation(self):
         """Toggle continuous voice conversation mode"""
@@ -380,7 +553,9 @@ class SerenaApp:
         try:
             from agents import get_agent_manager
             self.agent_manager = get_agent_manager()
-            print("Agent system initialized")
+            # Start the scheduler for scheduled tasks
+            self.agent_manager.start_scheduler()
+            print("Agent system initialized with scheduler")
         except Exception as e:
             print(f"Could not setup agent system: {e}")
             self.agent_manager = None
@@ -544,6 +719,18 @@ class SerenaApp:
         self.listen_btn.pack(fill=tk.X)
         self.listen_btn.pack_forget()  # hidden by default
 
+        # ── APPROVAL STATUS INDICATOR (Phase 1) ───────────────
+        self.approval_status_frame = tk.Frame(self.chat_frame, bg=self.current_theme["primary_bg"])
+        self.approval_status_label = tk.Label(
+            self.approval_status_frame,
+            text="",
+            bg=self.current_theme["primary_bg"],
+            fg=self.current_theme["text_color"],
+            font=("Segoe UI", 9)
+        )
+        self.approval_status_label.pack(pady=5)
+        self.approval_status_frame.pack_forget()  # hidden by default
+
         # Character-specific welcome message (only once on startup)
         if is_startup:
             char = get_character()
@@ -633,6 +820,132 @@ class SerenaApp:
                 except Exception as e:
                     print(f"Voice output error: {e}")
                     # Continue without voice - don't crash
+    
+    # ==================== PHASE 1 APPROVAL WORKFLOW UI ====================
+    
+    def show_approval_dialog(self, operation: str, details: str, danger_level: str = "DANGEROUS") -> bool:
+        """
+        Show approval dialog for dangerous operations.
+        
+        Phase 1: Human-in-the-loop approval workflow UI.
+        
+        Args:
+            operation: The operation requiring approval
+            details: Human-readable description
+            danger_level: The danger level of the operation
+            
+        Returns:
+            True if approved, False if denied
+        """
+        # Create approval dialog window
+        approval_window = tk.Toplevel(self.root)
+        approval_window.title(f"Approval Required - {danger_level}")
+        approval_window.geometry("500x300")
+        approval_window.configure(bg=self.current_theme["primary_bg"])
+        approval_window.transient(self.root)
+        approval_window.grab_set()
+        
+        # Center the window
+        approval_window.update_idletasks()
+        x = (self.root.winfo_x() + self.root.winfo_width() // 2) - (approval_window.winfo_width() // 2)
+        y = (self.root.winfo_y() + self.root.winfo_height() // 2) - (approval_window.winfo_height() // 2)
+        approval_window.geometry(f"+{x}+{y}")
+        
+        # Make modal
+        approval_window.focus_set()
+        
+        # Approval result
+        approval_result = {"approved": False}
+        
+        def approve():
+            approval_result["approved"] = True
+            approval_window.destroy()
+        
+        def deny():
+            approval_result["approved"] = False
+            approval_window.destroy()
+        
+        # UI elements
+        tk.Label(
+            approval_window,
+            text=f"⚠️ {danger_level} OPERATION",
+            font=("Segoe UI", 14, "bold"),
+            bg=self.current_theme["primary_bg"],
+            fg="#ff6b6b" if danger_level == "DANGEROUS" else "#ffd93d"
+        ).pack(pady=20)
+        
+        tk.Label(
+            approval_window,
+            text=f"Operation: {operation}",
+            font=("Segoe UI", 11),
+            bg=self.current_theme["primary_bg"],
+            fg=self.current_theme["text_color"]
+        ).pack(pady=5)
+        
+        tk.Label(
+            approval_window,
+            text=f"Details: {details}",
+            font=("Segoe UI", 10),
+            bg=self.current_theme["primary_bg"],
+            fg=self.current_theme["text_color"],
+            wraplength=450
+        ).pack(pady=10, padx=20)
+        
+        tk.Label(
+            approval_window,
+            text="Do you want to approve this operation?",
+            font=("Segoe UI", 11, "bold"),
+            bg=self.current_theme["primary_bg"],
+            fg=self.current_theme["text_color"]
+        ).pack(pady=10)
+        
+        button_frame = tk.Frame(approval_window, bg=self.current_theme["primary_bg"])
+        button_frame.pack(pady=20)
+        
+        tk.Button(
+            button_frame,
+            text="✓ Approve",
+            command=approve,
+            bg="#51cf66",
+            fg="white",
+            font=("Segoe UI", 11, "bold"),
+            width=12
+        ).pack(side=tk.LEFT, padx=10)
+        
+        tk.Button(
+            button_frame,
+            text="✗ Deny",
+            command=deny,
+            bg="#ff6b6b",
+            fg="white",
+            font=("Segoe UI", 11, "bold"),
+            width=12
+        ).pack(side=tk.LEFT, padx=10)
+        
+        # Wait for window to close
+        self.root.wait_window(approval_window)
+        
+        return approval_result["approved"]
+    
+    def show_approval_status(self, message: str):
+        """
+        Show approval status indicator in the chat interface.
+        
+        Phase 1: Approval status notification.
+        
+        Args:
+            message: The status message to display
+        """
+        self.approval_status_frame.pack(pady=5)
+        self.approval_status_label.config(text=f"⚠️ {message}")
+        
+        # Auto-hide after 5 seconds
+        self.root.after(5000, self.hide_approval_status)
+    
+    def hide_approval_status(self):
+        """Hide the approval status indicator."""
+        self.approval_status_frame.pack_forget()
+        self.approval_status_label.config(text="")
 
     def add_message(self, sender, text):
         self.chat.configure(state="normal")
@@ -663,7 +976,8 @@ class SerenaApp:
 
         def run():
             from router import route
-            response = route(user_input)
+            # Pass agent_manager to router for Phase 3 integration
+            response = route(user_input, agent_manager=self.agent_manager)
             char_name = get_character()["name"]
 
             if response == "__SHUTDOWN__":

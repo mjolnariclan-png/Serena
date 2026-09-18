@@ -1,6 +1,8 @@
 """
 Base Agent Framework
 Provides the foundation for specialized background agents
+
+Phase 1: Integrated with CentralizedPermissionSystem for single authority
 """
 
 import os
@@ -13,21 +15,43 @@ import subprocess
 import shutil
 
 class BaseAgent:
-    """Base class for all specialized agents"""
+    """Base class for all specialized agents
     
-    def __init__(self, name: str, workspace: Path, instructions: str = ""):
+    Phase 1: Uses CentralizedPermissionSystem for authorization
+    """
+    
+    def __init__(self, name: str, workspace: Path, instructions: str = "", permission_system=None):
         self.name = name
         self.workspace = workspace
         self.instructions = instructions
         self.logger = self._setup_logging()
+        
+        # Phase 1: Use centralized permission system
+        self.permission_system = permission_system
+        
+        # Keep local permissions for defense-in-depth (will be registered with centralized system)
         self.permissions = {
             "read_dirs": [],
             "write_dirs": [],
             "allowed_commands": [],
             "forbidden_operations": []
         }
+        
+        # Keep safety rules for validation (separate from authorization)
         self.rules = []
         self.activity_log = []
+        
+        # Register agent permissions with centralized system if available
+        if self.permission_system:
+            self._register_with_centralized_system()
+    
+    def _register_with_centralized_system(self):
+        """Register this agent's permissions with the centralized permission system."""
+        try:
+            self.permission_system.set_agent_permissions(self.name, self.permissions)
+            self.logger.info(f"Registered {self.name} with centralized permission system")
+        except Exception as e:
+            self.logger.warning(f"Failed to register with centralized permission system: {e}")
         
     def _setup_logging(self):
         """Setup agent-specific logging"""
@@ -204,6 +228,104 @@ class BaseAgent:
         }
     
     def execute_task(self, task: str) -> str:
-        """Execute a task - to be overridden by specific agents"""
+        """Execute a task - to be overridden by specific agents
+        
+        Phase 1: Enhanced with permission validation and verification
+        """
         self.logger.info(f"Executing task: {task}")
+        
+        # Phase 1: Check with centralized permission system if available
+        if self.permission_system:
+            try:
+                from core_data_contracts import PermissionLevel
+                permission_decision = self.permission_system.validate_operation(
+                    operation="execute_task",
+                    agent_id=self.name,
+                    context={"task": task}
+                )
+                
+                if not permission_decision.allowed:
+                    self.logger.error(f"Permission denied for task: {task}. Reason: {permission_decision.reason}")
+                    return f"Permission denied: {permission_decision.reason}"
+                
+                # Check if approval is required
+                if permission_decision.requires_approval:
+                    self.logger.warning(f"Approval required for task: {task}")
+                    # For now, we'll deny approval-required tasks until approval UI is implemented
+                    return f"Approval required for task: {task}. Use approval workflow to proceed."
+                    
+            except Exception as e:
+                self.logger.warning(f"Permission check failed, proceeding with caution: {e}")
+        
+        # Execute the task (to be overridden by specific agents)
+        result = self._execute_task_implementation(task)
+        
+        # Phase 1: Verify the operation
+        verification_result = self.verify_operation("execute_task", task, result)
+        
+        if not verification_result:
+            self.logger.warning(f"Verification failed for task: {task}")
+            return f"Task executed but verification failed: {result}"
+        
+        return result
+    
+    def _execute_task_implementation(self, task: str) -> str:
+        """Implementation of task execution - to be overridden by specific agents"""
         return f"Task executed: {task}"
+    
+    def verify_operation(self, operation: str, context: str, result: str) -> bool:
+        """Verify that an operation completed successfully
+        
+        Phase 1: Basic verification - can be enhanced by specific agents
+        
+        Args:
+            operation: The operation that was performed
+            context: Context about the operation
+            result: The result of the operation
+            
+        Returns:
+            True if verification passed, False otherwise
+        """
+        # Basic verification - check if result is not None/empty
+        if result is None:
+            self.logger.warning(f"Verification failed: empty result for {operation}")
+            return False
+        
+        if isinstance(result, str) and not result.strip():
+            self.logger.warning(f"Verification failed: empty result for {operation}")
+            return False
+        
+        # Check for error indicators in result
+        if isinstance(result, str):
+            error_indicators = ["error", "failed", "denied", "exception"]
+            if any(indicator in result.lower() for indicator in error_indicators):
+                self.logger.warning(f"Verification failed: error indicators in result for {operation}")
+                return False
+        
+        # Specific verifications for different operations
+        if operation == "write_file":
+            return self._verify_file_operation(context, "write")
+        elif operation == "move_file":
+            return self._verify_file_operation(context, "move")
+        elif operation == "delete_file":
+            return self._verify_file_operation(context, "delete")
+        
+        # Default verification passes if no explicit error indicators
+        return True
+    
+    def _verify_file_operation(self, context: str, operation: str) -> bool:
+        """Verify file operations"""
+        try:
+            # Parse path from context
+            if operation == "delete":
+                # For delete, verify file no longer exists
+                if Path(context).exists():
+                    return False
+            else:
+                # For write/move, verify file exists
+                if not Path(context).exists():
+                    return False
+            return True
+        except Exception as e:
+            self.logger.warning(f"File verification failed: {e}")
+            return False

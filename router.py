@@ -251,7 +251,21 @@ def detect_mode_switch(prompt: str) -> str:
     
     return None
 
-def route(prompt: str):
+def format_task_result(result: dict) -> str:
+    """Format a task result dictionary for display."""
+    lines = []
+    for key, value in result.items():
+        if isinstance(value, dict):
+            lines.append(f"{key}:")
+            for subkey, subvalue in value.items():
+                lines.append(f"  {subkey}: {subvalue}")
+        elif isinstance(value, list):
+            lines.append(f"{key}: {len(value)} items")
+        else:
+            lines.append(f"{key}: {value}")
+    return "\n".join(lines)
+
+def route(prompt: str, agent_manager=None):
     prompt_lower = prompt.lower().strip()
 
     # Shutdown
@@ -541,15 +555,55 @@ def route(prompt: str):
             print(f"Hermes error: {e}, falling back to local agentic")
             # Fall through to local agentic system
     
-    # Fallback agentic handling when Hermes is not available but we have agentic requests or are in agentic mode
+    # Phase 3: Try agent ecosystem integration first
+    if agent_manager is not None:
+        try:
+            from ai import submit_agent_task, AGENT_MANAGER_AVAILABLE
+            if AGENT_MANAGER_AVAILABLE:
+                # Try to route through agent ecosystem with result waiting
+                result = submit_agent_task(prompt, agent_manager, wait_for_result=True)
+                if result.get("success"):
+                    # Task completed successfully
+                    task_result = result.get("result", {})
+                    if isinstance(task_result, dict):
+                        # Format the result for display
+                        return f"{get_character()['name']}: Task completed successfully.\n{format_task_result(task_result)}"
+                    else:
+                        return f"{get_character()['name']}: Task completed. Result: {task_result}"
+                elif result.get("is_agent_task") == False:
+                    # Not an agent task, fall through to normal routing
+                    pass
+                else:
+                    # Agent task but failed (agent not available, timeout, etc.)
+                    return f"{get_character()['name']}: {result.get('message', 'Agent task failed')}"
+        except Exception as e:
+            print(f"Agent ecosystem error: {e}, falling back to standard routing")
+            # Fall through to standard routing
+
+def format_task_result(result: dict) -> str:
+    """Format a task result dictionary for display."""
+    lines = []
+    for key, value in result.items():
+        if isinstance(value, dict):
+            lines.append(f"{key}:")
+            for subkey, subvalue in value.items():
+                lines.append(f"  {subkey}: {subvalue}")
+        elif isinstance(value, list):
+            lines.append(f"{key}: {len(value)} items")
+        else:
+            lines.append(f"{key}: {value}")
+    return "\n".join(lines)
+
+    # Phase 3 fallback agentic handling when agent system not available
     if is_agentic_request(prompt) or get_current_mode() == "agentic":
         try:
             from agentic_executor import get_agentic_executor
             from agentic_tools import get_agentic_tools
-            # Don't use permission system to avoid blocking
-            perm_system = None
-            executor = get_agentic_executor(None, perm_system)
-            tools_instance = get_agentic_tools()
+            from permission_system import get_centralized_permission_system
+            # Phase 1: Use centralized permission system - NO BYPASS ALLOWED
+            perm_system = get_centralized_permission_system()
+            tools_instance = get_agentic_tools(permission_system=perm_system)
+            executor = get_agentic_executor(tools_instance.tools, perm_system)
             
             # Map agentic_tools methods to executor tools
             tool_mapping = {

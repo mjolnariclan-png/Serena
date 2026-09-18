@@ -17,19 +17,24 @@ class AgenticTools:
     """
     A collection of safe tools for agentic operations.
     All operations include safety checks and logging.
+    
+    Phase 1: Integrated with CentralizedPermissionSystem for authorization
     """
     
-    def __init__(self, base_path: str = None, safe_mode: bool = True):
+    def __init__(self, base_path: str = None, safe_mode: bool = True, permission_system=None):
         """
         Initialize agentic tools with safety constraints.
         
         Args:
             base_path: Base directory for file operations (defaults to current directory)
             safe_mode: If True, requires confirmation for dangerous operations
+            permission_system: Centralized permission system for authorization (Phase 1)
         """
         self.base_path = Path(base_path) if base_path else Path.cwd()
         self.safe_mode = safe_mode
+        self.permission_system = permission_system  # Phase 1: centralized authorization
         self.operation_log = []
+        self.agent_id = "AgenticTools"  # Default agent ID for permission checks
         
     def _log_operation(self, operation: str, details: str, success: bool = True):
         """Log an operation for audit trail."""
@@ -41,6 +46,51 @@ class AgenticTools:
         }
         self.operation_log.append(log_entry)
         print(f"[Agentic Log] {operation}: {details} - {'SUCCESS' if success else 'FAILED'}")
+    
+    def _check_permission(self, operation: str, context: Dict = None) -> bool:
+        """
+        Check permission for an operation using centralized permission system.
+        
+        Phase 1: All tools must validate through centralized system.
+        
+        Args:
+            operation: The operation being performed
+            context: Additional context about the operation
+            
+        Returns:
+            True if operation is allowed, False otherwise
+        """
+        if self.permission_system is None:
+            # If no permission system, allow operation (for backward compatibility)
+            # But log a warning - this should not happen in Phase 1
+            print(f"[WARNING] No permission system for {operation} - allowing with caution")
+            return True
+        
+        try:
+            context = context or {}
+            context["agent_id"] = self.agent_id
+            
+            permission_decision = self.permission_system.validate_operation(
+                operation=operation,
+                agent_id=self.agent_id,
+                context=context
+            )
+            
+            if not permission_decision.allowed:
+                print(f"[PERMISSION DENIED] {operation}: {permission_decision.reason}")
+                return False
+            
+            # Check if approval is required
+            if permission_decision.requires_approval:
+                print(f"[APPROVAL REQUIRED] {operation}: Use approval workflow")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"[ERROR] Permission check failed for {operation}: {e}")
+            # Fail safe - deny if permission check fails
+            return False
     
     # ==================== FILE OPERATIONS ====================
     
@@ -79,13 +129,17 @@ class AgenticTools:
         Returns:
             File contents as string, or None if failed
         """
+        # Phase 1: Check permission first
+        if not self._check_permission("read_file", {"file_path": file_path}):
+            return None
+        
         try:
             target_file = Path(file_path)
             if not target_file.exists():
                 self._log_operation("read_file", f"File not found: {target_file}", False)
                 return None
             
-            # Security check: don't read sensitive files
+            # Security check: don't read sensitive files (defense-in-depth)
             sensitive_extensions = ['.pem', '.key', '.env', '.secret']
             if target_file.suffix.lower() in sensitive_extensions and self.safe_mode:
                 self._log_operation("read_file", f"Blocked sensitive file: {target_file}", False)
@@ -111,6 +165,10 @@ class AgenticTools:
         Returns:
             True if successful, False otherwise
         """
+        # Phase 1: Check permission first
+        if not self._check_permission("write_file", {"file_path": file_path}):
+            return False
+        
         try:
             target_file = Path(file_path)
             
@@ -138,6 +196,10 @@ class AgenticTools:
         Returns:
             True if successful, False otherwise
         """
+        # Phase 1: Check permission first
+        if not self._check_permission("rename_file", {"old_path": old_path, "new_path": new_path}):
+            return False
+        
         try:
             old_file = Path(old_path)
             new_file = Path(new_path)
@@ -164,6 +226,10 @@ class AgenticTools:
         Returns:
             Tuple of (success, message)
         """
+        # Phase 1: Check permission first (delete is dangerous)
+        if not self._check_permission("delete_file", {"file_path": file_path}):
+            return False, "Permission denied for delete operation"
+        
         try:
             target_file = Path(file_path)
             
@@ -265,8 +331,12 @@ class AgenticTools:
         Returns:
             Tuple of (success, output)
         """
+        # Phase 1: Check permission first (command execution is dangerous)
+        if not self._check_permission("run_command", {"command": command}):
+            return False, "Permission denied for command execution"
+        
         try:
-            # Dangerous command check
+            # Dangerous command check (defense-in-depth)
             dangerous_commands = ['rm -rf', 'del /f', 'format', 'shutdown', 'reboot']
             if any(dangerous in command.lower() for dangerous in dangerous_commands) and self.safe_mode:
                 self._log_operation("run_command", f"Blocked dangerous command: {command}", False)

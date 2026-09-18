@@ -1,6 +1,9 @@
 """
 Agentic Executor for Serena
 This module implements the planning/execution loop for multi-step agentic tasks.
+
+Phase 1: Integrated with centralized permission system and proper lifecycle:
+Validate → Plan → Permission → Approval → Execute → Verify → Audit
 """
 
 import json
@@ -9,6 +12,16 @@ import re
 from typing import Dict, List, Optional, Callable, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
+
+# Try to import Phase 1 core data contracts
+try:
+    from core_data_contracts import (
+        TaskStatus, TaskStep, AgenticTask, 
+        PermissionLevel, generate_correlation_id
+    )
+    CORE_CONTRACTS_AVAILABLE = True
+except ImportError:
+    CORE_CONTRACTS_AVAILABLE = False
 
 
 class TaskStatus(Enum):
@@ -85,6 +98,8 @@ class AgenticTask:
 class AgenticExecutor:
     """
     Executes multi-step agentic tasks with planning, execution, and error recovery.
+    
+    Phase 1: Permission system is now required for security.
     """
     
     def __init__(self, tools: Dict[str, Callable] = None, permission_system=None):
@@ -93,9 +108,21 @@ class AgenticExecutor:
         
         Args:
             tools: Dictionary of available tools (name -> function)
-            permission_system: Optional permission system for safety checks
+            permission_system: Required permission system for safety checks
+            
+        Raises:
+            ValueError: If permission_system is None (Phase 1 security requirement)
         """
         self.tools = tools or {}
+        
+        # Phase 1: Permission system is now mandatory
+        if permission_system is None:
+            raise ValueError(
+                "Phase 1 Security Requirement: Permission system is mandatory. "
+                "AgenticExecutor cannot operate without authorization infrastructure. "
+                "This prevents unauthorized privileged execution."
+            )
+        
         self.permission_system = permission_system
         self.active_tasks: Dict[str, AgenticTask] = {}
         self.task_history: List[AgenticTask] = []
@@ -469,6 +496,8 @@ class AgenticExecutor:
         """
         Execute a single step using the appropriate tool.
         
+        Phase 1: Integrated with centralized permission system and verification.
+        
         Args:
             step: The step to execute
             
@@ -481,37 +510,90 @@ class AgenticExecutor:
             print(f"Tool '{step.tool}' not available, skipping step")
             return True, f"Tool '{step.tool}' not available, step skipped"
         
-        try:
-            # Check permissions if permission system is available
-            if self.permission_system:
-                allowed, message, request = self.permission_system.check_permission(
-                    step.tool, 
-                    f"{step.description} with params: {step.parameters}"
+        # Phase 1: Validate operation with centralized permission system
+        correlation_id = generate_correlation_id() if CORE_CONTRACTS_AVAILABLE else None
+        
+        if self.permission_system:
+            try:
+                permission_decision = self.permission_system.validate_operation(
+                    operation=step.tool,
+                    agent_id="AgenticExecutor",
+                    context={
+                        "step_id": step.step_id,
+                        "description": step.description,
+                        "parameters": step.parameters,
+                        "correlation_id": correlation_id
+                    }
                 )
-                if not allowed:
-                    return False, f"Permission denied: {message}"
-            
+                
+                if not permission_decision.allowed:
+                    print(f"Permission denied for {step.tool}: {permission_decision.reason}")
+                    return False, f"Permission denied: {permission_decision.reason}"
+                
+                # Check if approval is required
+                if permission_decision.requires_approval:
+                    print(f"Approval required for {step.tool}")
+                    return False, f"Approval required for {step.tool}: {permission_decision.reason}"
+                    
+            except Exception as e:
+                print(f"Permission check failed for {step.tool}: {e}")
+                return False, f"Permission check failed: {str(e)}"
+        
+        try:
             # Execute the tool
+            print(f"Executing tool: {step.tool} with parameters: {step.parameters}")
             result = tool(**step.parameters)
             
-            # Handle different return types
-            if isinstance(result, str):
-                # String result means success with message
-                return True, result
-            elif isinstance(result, dict):
-                # Dict result - check for success/error fields
-                if "success" in result:
-                    return result["success"], result.get("error", result)
-                return True, result
-            elif isinstance(result, tuple):
-                # Tuple result - assume (success, result) format
-                return result
-            else:
-                # Other types - assume success
-                return True, result
+            # Phase 1: Verify the operation
+            verification_passed = self._verify_step_execution(step, result)
+            
+            if not verification_passed:
+                print(f"Verification failed for {step.tool}")
+                return False, f"Operation executed but verification failed: {result}"
+            
+            return True, result
             
         except Exception as e:
+            print(f"Tool execution error: {e}")
             return False, f"Tool execution error: {str(e)}"
+    
+    def _verify_step_execution(self, step: TaskStep, result: Any) -> bool:
+        """
+        Verify that a step execution was successful.
+        
+        Phase 1: Basic verification - can be enhanced.
+        
+        Args:
+            step: The step that was executed
+            result: The result of the execution
+            
+        Returns:
+            True if verification passed, False otherwise
+        """
+        # Basic verification - check if result is not None/empty
+        if result is None:
+            return False
+        
+        if isinstance(result, str) and not result.strip():
+            return False
+        
+        # Check for error indicators in result
+        if isinstance(result, str):
+            error_indicators = ["error", "failed", "denied", "exception", "permission denied"]
+            if any(indicator in result.lower() for indicator in error_indicators):
+                return False
+        
+        # Verify file operations if possible
+        if step.tool in ["write_file", "create_directory", "rename_file"]:
+            file_path = step.parameters.get("file_path") or step.parameters.get("dir_path") or step.parameters.get("new_path")
+            if file_path:
+                from pathlib import Path
+                if not Path(file_path).exists():
+                    print(f"Verification failed: {file_path} does not exist after {step.tool}")
+                    return False
+        
+        # Default verification passes
+        return True
     
     def get_task_status(self, task_id: str) -> Optional[Dict]:
         """Get the status of a task."""
@@ -544,8 +626,27 @@ class AgenticExecutor:
 _agentic_executor = None
 
 def get_agentic_executor(tools: Dict[str, Callable] = None, permission_system=None) -> AgenticExecutor:
-    """Get or create the global AgenticExecutor instance."""
+    """
+    Get or create the global AgenticExecutor instance.
+    
+    Phase 1: Permission system is now required. Will raise ValueError if None.
+    
+    Args:
+        tools: Dictionary of available tools (name -> function)
+        permission_system: Required permission system for safety checks
+        
+    Returns:
+        AgenticExecutor instance
+    """
     global _agentic_executor
+    
+    # Phase 1: Permission system is mandatory
+    if permission_system is None:
+        raise ValueError(
+            "Phase 1 Security Requirement: Permission system is mandatory for AgenticExecutor. "
+            "Use get_centralized_permission_system() from permission_system module."
+        )
+    
     if _agentic_executor is None:
         # Default tools if none provided
         default_tools = {}
