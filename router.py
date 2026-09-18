@@ -475,6 +475,18 @@ def route(prompt: str):
                     result = manager.execute_agent_task("ServerAgent", "check services")
                     return f"Server Agent: {result}"
             
+            elif "photo" in prompt_lower:
+                manager = get_agent_manager()
+                if "scan" in prompt_lower or "organize" in prompt_lower:
+                    result = manager.execute_agent_task("PhotoAgent", "scan incoming")
+                    return f"Photo Agent: {result}"
+                elif "report" in prompt_lower or "stats" in prompt_lower:
+                    result = manager.execute_agent_task("PhotoAgent", "report")
+                    return f"Photo Agent:\n{result}"
+                elif "check" in prompt_lower:
+                    result = manager.execute_agent_task("PhotoAgent", "check")
+                    return f"Photo Agent: {result}"
+            
             elif "list" in prompt_lower:
                 manager = get_agent_manager()
                 status = manager.get_all_agent_status()

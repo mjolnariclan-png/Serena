@@ -11,6 +11,11 @@ import threading
 import keyboard
 import time
 from PIL import Image, ImageDraw
+try:
+    from PIL import ImageTk
+    IMAGETK_AVAILABLE = True
+except ImportError:
+    IMAGETK_AVAILABLE = False
 
 # Optional system tray import - use lazy import to avoid crashes
 PYSTRAY_AVAILABLE = False
@@ -58,13 +63,16 @@ class SerenaApp:
         
         # ── AGENT SYSTEM ───────────────────────────────────
         self.setup_agent_system()
+        
+        # ── VISUAL ASSETS ───────────────────────────────────
+        self.setup_visual_assets()
 
         # ── BUILD UI WITH CHARACTER TABS ────────────────────
         self.build_main_ui()
         
         # ── START DIRECTLY IN CHAT MODE ───────────────────────
         set_mode("chat")
-        self.build_chat_ui("Chat / Adventure mode")
+        self.build_chat_ui("Chat / Adventure mode", is_startup=True)
     
     def apply_theme(self):
         """Apply current character's theme to the application"""
@@ -87,6 +95,13 @@ class SerenaApp:
         self.info_label.config(text=f"{char_info['name']} - {char_info['identity']}", 
                                fg=self.current_theme["accent_color"],
                                bg=self.current_theme["primary_bg"])
+        
+        # Update avatars
+        if IMAGETK_AVAILABLE and hasattr(self, 'visual_assets') and "serena_avatar" in self.visual_assets and "astrid_avatar" in self.visual_assets:
+            if character_id == "serena":
+                self.serena_avatar_label.config(image=self.visual_assets["serena_avatar"])
+            else:
+                self.astrid_avatar_label.config(image=self.visual_assets["astrid_avatar"])
         
         # Rebuild UI with new theme
         self.chat_frame.destroy()
@@ -127,14 +142,24 @@ class SerenaApp:
             self.astrid_tab.config(bg=theme["button_color"], relief=tk.RAISED)
 
     def build_main_ui(self):
-        """Build the main UI with character tabs"""
-        # Character selection tabs
+        """Build the main UI with character tabs and visual assets"""
+        # Character selection tabs with avatars
         tab_frame = tk.Frame(self.root, bg=self.current_theme["primary_bg"])
         tab_frame.pack(fill=tk.X, padx=10, pady=(10, 5))
         
-        # Serena tab
+        # Serena tab with avatar
+        serena_frame = tk.Frame(tab_frame, bg=self.current_theme["primary_bg"])
+        serena_frame.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        self.serena_avatar_label = tk.Label(serena_frame, bg=self.current_theme["primary_bg"])
+        if IMAGETK_AVAILABLE and "serena_avatar" in self.visual_assets:
+            self.serena_avatar_label.config(image=self.visual_assets["serena_avatar"])
+        else:
+            self.serena_avatar_label.config(text="⚡", font=("Segoe UI", 16))
+        self.serena_avatar_label.pack(side=tk.LEFT, padx=(0, 5))
+        
         self.serena_tab = tk.Button(
-            tab_frame,
+            serena_frame,
             text="⚡ Serena",
             command=lambda: self.switch_character("serena"),
             bg=self.current_theme["button_color"] if self.current_character == "serena" else self.current_theme["secondary_bg"],
@@ -142,11 +167,21 @@ class SerenaApp:
             font=("Segoe UI", 10, "bold"),
             relief=tk.RAISED if self.current_character == "serena" else tk.FLAT
         )
-        self.serena_tab.pack(side=tk.LEFT, padx=5, pady=5)
+        self.serena_tab.pack(side=tk.LEFT)
         
-        # Astrid tab  
+        # Astrid tab with avatar
+        astrid_frame = tk.Frame(tab_frame, bg=self.current_theme["primary_bg"])
+        astrid_frame.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        self.astrid_avatar_label = tk.Label(astrid_frame, bg=self.current_theme["primary_bg"])
+        if IMAGETK_AVAILABLE and "astrid_avatar" in self.visual_assets:
+            self.astrid_avatar_label.config(image=self.visual_assets["astrid_avatar"])
+        else:
+            self.astrid_avatar_label.config(text="🛡️", font=("Segoe UI", 16))
+        self.astrid_avatar_label.pack(side=tk.LEFT, padx=(0, 5))
+        
         self.astrid_tab = tk.Button(
-            tab_frame,
+            astrid_frame,
             text="🛡️ Astrid",
             command=lambda: self.switch_character("astrid"),
             bg=self.current_theme["button_color"] if self.current_character == "astrid" else self.current_theme["secondary_bg"],
@@ -154,7 +189,7 @@ class SerenaApp:
             font=("Segoe UI", 10, "bold"),
             relief=tk.RAISED if self.current_character == "astrid" else tk.FLAT
         )
-        self.astrid_tab.pack(side=tk.LEFT, padx=5, pady=5)
+        self.astrid_tab.pack(side=tk.LEFT)
         
         # Character info label
         char_info = get_character()
@@ -349,6 +384,48 @@ class SerenaApp:
         except Exception as e:
             print(f"Could not setup agent system: {e}")
             self.agent_manager = None
+    
+    def setup_visual_assets(self):
+        """Setup visual assets (avatars, icons, backgrounds)"""
+        self.visual_assets = {}
+        images_dir = Path(__file__).parent / "images"
+        
+        if not IMAGETK_AVAILABLE:
+            print("ImageTk not available - visual assets disabled")
+            return
+        
+        try:
+            # Load avatars
+            avatar_dir = images_dir / "avatars"
+            self.visual_assets["serena_avatar"] = ImageTk.PhotoImage(Image.open(avatar_dir / "serena_avatar.png"))
+            self.visual_assets["astrid_avatar"] = ImageTk.PhotoImage(Image.open(avatar_dir / "astrid_avatar.png"))
+            
+            # Load icons
+            icon_dir = images_dir / "icons"
+            icon_files = {
+                "agent": "agent_icon.png",
+                "media": "media_icon.png", 
+                "server": "server_icon.png",
+                "photo": "photo_icon.png",
+                "chat": "chat_icon.png",
+                "settings": "settings_icon.png"
+            }
+            
+            for icon_name, icon_file in icon_files.items():
+                icon_path = icon_dir / icon_file
+                if icon_path.exists():
+                    self.visual_assets[f"{icon_name}_icon"] = ImageTk.PhotoImage(Image.open(icon_path))
+            
+            # Load backgrounds
+            bg_dir = images_dir / "backgrounds"
+            self.visual_assets["serena_background"] = Image.open(bg_dir / "serena_background.png")
+            self.visual_assets["astrid_background"] = Image.open(bg_dir / "astrid_background.png")
+            
+            print("Visual assets loaded successfully")
+            
+        except Exception as e:
+            print(f"Could not load visual assets: {e}")
+            self.visual_assets = {}
 
     def create_tray_icon(self):
         """Create a simple icon for the system tray"""
@@ -411,9 +488,13 @@ class SerenaApp:
                                    bg=self.current_theme["primary_bg"], font=("Segoe UI", 9))
         self.conv_label.pack(side=tk.RIGHT, padx=(0, 10))
         
-        # Agent status indicator
-        self.agent_label = tk.Label(top_bar, text="🤖 Agents", fg=self.current_theme["accent_color"],
-                                   bg=self.current_theme["primary_bg"], font=("Segoe UI", 9))
+        # Agent status indicator with icon
+        if IMAGETK_AVAILABLE and hasattr(self, 'visual_assets') and "agent_icon" in self.visual_assets:
+            self.agent_label = tk.Label(top_bar, image=self.visual_assets["agent_icon"],
+                                       bg=self.current_theme["primary_bg"])
+        else:
+            self.agent_label = tk.Label(top_bar, text="🤖 Agents", fg=self.current_theme["accent_color"],
+                                       bg=self.current_theme["primary_bg"], font=("Segoe UI", 9))
         self.agent_label.pack(side=tk.RIGHT, padx=(0, 10))
 
         # ── CHAT DISPLAY ────────────────────────────────────

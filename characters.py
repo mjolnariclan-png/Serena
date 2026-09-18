@@ -36,15 +36,25 @@ Expresses emotions openly and vividly. Uses casual, friendly language with lots 
             "primary_bg": "#1e1e1e",
             "secondary_bg": "#2d2d2d", 
             "accent_color": "#ff80ab",  # Pink (Pokémon-like playful color)
+            "accent_secondary": "#ff4081",  # Darker pink
             "text_color": "#ffffff",
+            "text_secondary": "#b0b0b0",
             "user_message_color": "#4fc3f7",  # Light blue
             "character_message_color": "#ff80ab",  # Pink
             "button_color": "#007acc",
+            "button_hover": "#005999",
+            "tab_active": "#ff80ab",
+            "tab_inactive": "#3c3c3c",
             "status_ready": "#00e676",
             "status_processing": "#ff9800",
+            "status_error": "#f44336",
             "header_font": ("Segoe UI", 10, "bold"),
             "body_font": ("Segoe UI", 11),
-            "tray_icon_color": "#ff80ab"
+            "title_font": ("Segoe UI", 12, "bold"),
+            "tray_icon_color": "#ff80ab",
+            "avatar_border": "#ff80ab",
+            "gradient_start": "#ff80ab",
+            "gradient_end": "#ff4081"
         },
         
         # Voice configuration
@@ -150,15 +160,25 @@ but warm and sincere. Avoids excessive exclamation points - prefers steady, conf
             "primary_bg": "#1a1a1a",  # Darker, like northern nights
             "secondary_bg": "#2a2a2a",
             "accent_color": "#8b9dc3",  # Muted blue-grey (Nordic sky)
+            "accent_secondary": "#6a7d9c",  # Darker Nordic blue
             "text_color": "#e8e8e8",  # Slightly warmer white
+            "text_secondary": "#b8b8b8",
             "user_message_color": "#9caf88",  # Earthy green
             "character_message_color": "#8b9dc3",  # Nordic blue-grey
             "button_color": "#5c6370",  # Stone grey
+            "button_hover": "#4a5360",
+            "tab_active": "#8b9dc3",
+            "tab_inactive": "#3a3a3a",
             "status_ready": "#98c379",  # Nordic green
             "status_processing": "#e5c07b",  # Gold/amber
+            "status_error": "#e06c75",
             "header_font": ("Segoe UI", 10, "bold"),
             "body_font": ("Segoe UI", 11),
-            "tray_icon_color": "#8b9dc3"
+            "title_font": ("Segoe UI", 12, "bold"),
+            "tray_icon_color": "#8b9dc3",
+            "avatar_border": "#8b9dc3",
+            "gradient_start": "#8b9dc3",
+            "gradient_end": "#6a7d9c"
         },
         
         # Voice configuration

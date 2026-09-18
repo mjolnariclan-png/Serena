@@ -35,6 +35,13 @@ def initialize_agent_system():
     except ImportError as e:
         print(f"Could not load ServerAgent: {e}")
     
+    try:
+        from photos.agent import PhotoAgent
+        photo_agent = PhotoAgent(workspace / "photos")
+        manager.register_agent(photo_agent)
+    except ImportError as e:
+        print(f"Could not load PhotoAgent: {e}")
+    
     return manager
 
 # Global agent manager instance

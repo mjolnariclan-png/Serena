@@ -37,8 +37,13 @@ def test_agent_system():
         server_result = manager.execute_agent_task("ServerAgent", "check services")
         print(f"  Server Agent result: {server_result}")
         
+        # Test Photo Agent
+        print("\n5. Testing Photo Agent...")
+        photo_result = manager.execute_agent_task("PhotoAgent", "check")
+        print(f"  Photo Agent result: {photo_result}")
+        
         # Generate dashboard
-        print("\n5. Generating dashboard...")
+        print("\n6. Generating dashboard...")
         dashboard = manager.generate_dashboard_report()
         print(dashboard)
         
@@ -67,7 +72,8 @@ def test_router_integration():
                 "agent status",
                 "agent list", 
                 "media agent scan",
-                "server agent check"
+                "server agent check",
+                "photo agent check"
             ]
             
             for command in test_commands:
