@@ -13,3 +13,12 @@ pydantic
 pydantic-core
 httpx
 openai
+vaderSentiment
+keyboard
+aiohttp
+eel
+pystray
+psutil
+opencv-python
+mediapipe
+python-dotenv

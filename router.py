@@ -1,9 +1,17 @@
 from local_ai import local_response
 from ai import generate_text, set_mode, list_modes, clear_memory, get_current_mode
+from characters import get_character, get_current_character
 import subprocess
 import platform
 import re
 import webbrowser
+
+# Agent system integration
+try:
+    from agents import get_agent_manager
+    AGENT_SYSTEM_AVAILABLE = True
+except ImportError:
+    AGENT_SYSTEM_AVAILABLE = False
 
 def _open_browser(url: str) -> str:
     """Open a URL in the default browser."""
@@ -121,6 +129,10 @@ try:
     WEB_SEARCH_AVAILABLE = True
 except ImportError:
     WEB_SEARCH_AVAILABLE = False
+    # Create stub functions to prevent crashes
+    def is_search_query(text): return False
+    def extract_search_query(text): return text
+    def search_web(query, **kwargs): return "Web search not available - missing dependencies"
 
 # Import Hermes Agent for agentic capabilities
 try:
@@ -134,18 +146,29 @@ try:
     IMAGE_GEN_AVAILABLE = True
 except ImportError:
     IMAGE_GEN_AVAILABLE = False
+    # Create stub functions to prevent crashes
+    def is_image_request(text): return False
+    def extract_image_prompt(text): return text
+    def generate_image(prompt, **kwargs): return "Image generation not available - missing dependencies"
 
 try:
     from gif_gen import generate_gif, is_gif_request, extract_gif_prompt
     GIF_GEN_AVAILABLE = True
 except ImportError:
     GIF_GEN_AVAILABLE = False
+    # Create stub functions to prevent crashes
+    def is_gif_request(text): return False
+    def extract_gif_prompt(text): return text
+    def generate_gif(prompt): return "GIF generation not available - missing dependencies"
 
 try:
     from coding_helper import is_coding_request, handle_coding_request
     CODING_HELPER_AVAILABLE = True
 except ImportError:
     CODING_HELPER_AVAILABLE = False
+    # Create stub functions to prevent crashes
+    def is_coding_request(text): return False
+    def handle_coding_request(text): return None
 
 def is_agentic_request(prompt: str) -> bool:
     """Detect if a request requires agentic capabilities (multi-step tasks, tool use, etc.)"""
@@ -163,10 +186,12 @@ def is_agentic_request(prompt: str) -> bool:
     return any(keyword in prompt_lower for keyword in agentic_keywords)
 
 def detect_mode_switch(prompt: str) -> str:
-    """Automatically detect and switch modes based on conversation context"""
+    """Automatically detect and switch modes based on conversation context and character"""
     prompt_lower = prompt.lower()
+    character = get_character()
+    char_name = character["name"].lower()
     
-    # Chat/sexual mode detection - explicit, romantic, or sexual keywords
+    # Base keywords that work for both characters
     chat_keywords = [
         "babe", "baby", "hun", "honey", "love", "sexy", "hot", "horny",
         "fuck", "sex", "naughty", "dirty", "kiss", "touch", "pleasure",
@@ -175,13 +200,23 @@ def detect_mode_switch(prompt: str) -> str:
         "beautiful", "gorgeous", "pretty", "handsome", "miss you", "want you"
     ]
     
+    # Character-specific chat keywords
+    if char_name == "serena":
+        chat_keywords.extend(["trainer", "adventure", "journey", "pokemon", "battle", "friendship"])
+    elif char_name == "astrid":
+        chat_keywords.extend(["friend", "warrior", "honor", "courage", "norse", "viking", "valhalla"])
+    
     # Writing/story mode detection - check first since it has specific terms
     story_keywords = [
         "write", "story", "book", "chapter", "character", "plot", "novel",
         "creative writing", "fiction", "narrative", "protagonist", "dialogue",
         "scene", "setting", "genre", "draft", "outline", "manuscript",
-        "author", "publish", "literary", "poem", "poetry", "tale"
+        "author", "publish", "literary", "poem", "poetry", "tale", "saga"
     ]
+    
+    # Character-specific story keywords
+    if char_name == "astrid":
+        story_keywords.extend(["saga", "legend", "myth", "norse mythology", "odin", "thor"])
     
     # Coding mode detection
     code_keywords = [
@@ -192,21 +227,27 @@ def detect_mode_switch(prompt: str) -> str:
         "developer", "software", "app", "application"
     ]
     
+    # Get mode labels for current character
+    character_modes = character["modes"]
+    
     # Check each category - story has priority over code for overlapping terms
     if any(keyword in prompt_lower for keyword in chat_keywords):
         if get_current_mode() != "chat":
             set_mode("chat")
-            return "[Auto-switched to Chat mode]"
+            mode_label = character_modes["chat"]["label"]
+            return f"[Auto-switched to {mode_label} mode]"
     
     elif any(keyword in prompt_lower for keyword in story_keywords):
         if get_current_mode() != "story":
             set_mode("story")
-            return "[Auto-switched to Writing mode]"
+            mode_label = character_modes["story"]["label"]
+            return f"[Auto-switched to {mode_label} mode]"
     
     elif any(keyword in prompt_lower for keyword in code_keywords):
         if get_current_mode() != "code":
             set_mode("code")
-            return "[Auto-switched to Coding mode]"
+            mode_label = character_modes["code"]["label"]
+            return f"[Auto-switched to {mode_label} mode]"
     
     return None
 
@@ -286,15 +327,20 @@ def route(prompt: str):
         voice_match = re.search(r'(?:change|use|switch)\s*(?:to\s*)?(\w+)\s*voice', prompt_lower)
         if voice_match:
             voice_name = voice_match.group(1)
-            return set_voice(voice_name)
+            result = set_voice(voice_name)
+            char_name = get_character()["name"]
+            return f"{char_name}: {result}"
         else:
-            return f"Available voices: {', '.join(list_voices())}. Say 'change voice to [voice name]' to switch."
+            voices = list_voices()
+            char_name = get_character()["name"]
+            return f"{char_name}: Available voices: {', '.join(voices)}. Say 'change voice to [voice name]' to switch."
     
     # List voices command
     if "list voices" in prompt_lower or "what voices" in prompt_lower or "available voices" in prompt_lower:
         from voice_enhanced import list_voices
         voices = list_voices()
-        return f"Available voices: {', '.join(voices)}"
+        char_name = get_character()["name"]
+        return f"{char_name}: Available voices: {', '.join(voices)}"
 
     # Direct file reading handling - CHECK THIS FIRST before anything else
     if "read" in prompt_lower and "file" in prompt_lower:
@@ -373,7 +419,7 @@ def route(prompt: str):
             elif file_name:
                 # Use default location if only file name provided
                 if "save" in prompt_lower and "desktop" in prompt_lower:
-                    final_path = f"C:/Users/mille/Desktop/{file_name}"
+                    final_path = str(Path.home() / "Desktop" / file_name)
                 else:
                     final_path = file_name
             else:
@@ -395,13 +441,62 @@ def route(prompt: str):
         except Exception as e:
             return f"Failed to create file: {str(e)}"
 
+    # Character switching
+    if "switch to" in prompt_lower or "change to" in prompt_lower:
+        if "serena" in prompt_lower:
+            from characters import set_character
+            return set_character("serena")
+        elif "astrid" in prompt_lower:
+            from characters import set_character
+            return set_character("astrid")
+    
+    # Agent system commands
+    if AGENT_SYSTEM_AVAILABLE:
+        if "agent" in prompt_lower or "agents" in prompt_lower:
+            if "status" in prompt_lower or "dashboard" in prompt_lower:
+                manager = get_agent_manager()
+                return manager.generate_dashboard_report()
+            
+            elif "media" in prompt_lower:
+                manager = get_agent_manager()
+                if "scan" in prompt_lower:
+                    result = manager.execute_agent_task("MediaAgent", "scan incoming")
+                    return f"Media Agent: {result}"
+                elif "refresh" in prompt_lower:
+                    result = manager.execute_agent_task("MediaAgent", "refresh jellyfin")
+                    return f"Media Agent: {result}"
+            
+            elif "server" in prompt_lower:
+                manager = get_agent_manager()
+                if "report" in prompt_lower:
+                    result = manager.execute_agent_task("ServerAgent", "report")
+                    return f"Server Agent:\n{result}"
+                elif "check" in prompt_lower:
+                    result = manager.execute_agent_task("ServerAgent", "check services")
+                    return f"Server Agent: {result}"
+            
+            elif "list" in prompt_lower:
+                manager = get_agent_manager()
+                status = manager.get_all_agent_status()
+                agent_list = [f"• {name}: {info['status']}" for name, info in status['agents'].items()]
+                return f"Available agents:\n" + "\n".join(agent_list)
+    
+    if prompt_lower in ["list characters", "what characters", "available characters"]:
+        from characters import list_characters
+        return list_characters()
+    
+    if prompt_lower in ["who are you", "what's your name", "your name"]:
+        char = get_character()
+        return f"I am {char['name']}, {char['identity']}. {char['backstory'][:200]}..."
+    
     # Manual mode switching
     if prompt_lower.startswith("mode "):
         new_mode = prompt_lower.replace("mode ", "").strip()
         return set_mode(new_mode)
 
     if prompt_lower in ["what mode", "current mode", "which mode"]:
-        return f"Currently in {get_current_mode()} mode."
+        char_name = get_character()["name"]
+        return f"{char_name} is currently in {get_current_mode()} mode."
 
     if prompt_lower in ["list modes", "show modes", "modes"]:
         return list_modes()
@@ -442,6 +537,7 @@ def route(prompt: str):
             # Don't use permission system to avoid blocking
             perm_system = None
             executor = get_agentic_executor(None, perm_system)
+            tools_instance = get_agentic_tools()
             
             # Map agentic_tools methods to executor tools
             tool_mapping = {
@@ -539,7 +635,7 @@ def route(prompt: str):
             elif file_name:
                 # Use default location if only file name provided
                 if "save" in prompt_lower and "desktop" in prompt_lower:
-                    final_path = f"C:/Users/mille/Desktop/{file_name}"
+                    final_path = str(Path.home() / "Desktop" / file_name)
                 else:
                     final_path = file_name
             else:

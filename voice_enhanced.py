@@ -1,25 +1,43 @@
-import sounddevice as sd
-import numpy as np
-from scipy.io.wavfile import write
-import speech_recognition as sr
+# Lazy imports for voice system to avoid crashes
+try:
+    import sounddevice as sd
+    import numpy as np
+    from scipy.io.wavfile import write
+    import speech_recognition as sr
+    import edge_tts
+    import pygame
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+    VOICE_AVAILABLE = True
+except Exception as e:
+    print(f"Voice system dependencies not available: {e}")
+    VOICE_AVAILABLE = False
+
 import tempfile
 import time
-import edge_tts
 import asyncio
-import pygame
 import threading
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import random
+from characters import get_character, get_character_voice
 
+# Default voice (will be overridden by character configuration)
 VOICE = "en-US-JennyNeural"
 
-# Init pygame mixer once at module load
-pygame.mixer.init()
+# Init pygame mixer once at module load if available
+if VOICE_AVAILABLE:
+    try:
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
+    except Exception as e:
+        print(f"Warning: Audio output initialization failed: {e}")
+        VOICE_AVAILABLE = False
 
 # Emotion analysis
-sentiment_analyzer = SentimentIntensityAnalyzer()
+if VOICE_AVAILABLE:
+    sentiment_analyzer = SentimentIntensityAnalyzer()
+else:
+    sentiment_analyzer = None
 
-# Emotion-based voice variants
+# Default emotion-based voice variants (will be overridden by character config)
 EMOTION_VOICES = {
     "happy": "en-US-JennyNeural",
     "sad": "en-US-GuyNeural", 
@@ -105,6 +123,8 @@ def list_voices():
 
 def detect_emotion(text):
     """Detect emotion from text using sentiment analysis"""
+    if not VOICE_AVAILABLE or not sentiment_analyzer:
+        return "calm"
     try:
         scores = sentiment_analyzer.polarity_scores(text)
         
@@ -122,47 +142,83 @@ def detect_emotion(text):
     except:
         return "calm"
 
-def get_emotion_voice(emotion, context="chat"):
-    """Get appropriate voice based on emotion and context"""
-    # For chat mode, use flirty/happy voices more often
+def get_character_voice_safe(character=None):
+    """Safely get character voice configuration"""
+    try:
+        return get_character_voice(character)
+    except:
+        return {"default_voice": current_voice, "emotion_voices": EMOTION_VOICES}
+
+def get_emotion_voice(emotion, context="chat", character=None):
+    """Get appropriate voice based on emotion, context, and character"""
+    # Get character-specific voice configuration
+    voice_config = get_character_voice_safe(character)
+    emotion_voices = voice_config.get("emotion_voices", EMOTION_VOICES)
+    
+    # For chat mode, use character-appropriate voice selection
     if context == "chat":
         if emotion in ["calm", "sad"]:
-            return EMOTION_VOICES["flirty"]
+            return emotion_voices.get("flirty", emotion_voices.get("calm", EMOTION_VOICES["calm"]))
         elif emotion == "excited":
-            return EMOTION_VOICES["excited"]
+            return emotion_voices.get("excited", EMOTION_VOICES["excited"])
         else:
-            return EMOTION_VOICES["happy"]
+            return emotion_voices.get("happy", EMOTION_VOICES["happy"])
     else:
-        return EMOTION_VOICES.get(emotion, EMOTION_VOICES["calm"])
+        return emotion_voices.get(emotion, emotion_voices.get("calm", EMOTION_VOICES["calm"]))
 
 # --------------------
 # 🔊 SPEAK (Enhanced)
 # --------------------
 
-async def _speak_async(text, emotion=None, context="chat"):
-    # Use emotion-based voice if emotion specified, otherwise use current voice
-    if emotion:
-        voice = get_emotion_voice(emotion, context)
-    else:
-        voice = current_voice
-    
-    communicate = edge_tts.Communicate(text, voice)
+async def _speak_async(text, emotion=None, context="chat", character=None):
+    if not VOICE_AVAILABLE:
+        return
+        
+    try:
+        # Get character-specific voice configuration
+        if character:
+            voice_config = get_character_voice_safe(character)
+            default_voice = voice_config.get("default_voice", current_voice)
+        else:
+            default_voice = current_voice
+        
+        # Use emotion-based voice if emotion specified, otherwise use default
+        if emotion:
+            voice = get_emotion_voice(emotion, context, character)
+        else:
+            voice = default_voice
+        
+        communicate = edge_tts.Communicate(text, voice)
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
-        path = f.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
+            path = f.name
 
-    await communicate.save(path)
+        await communicate.save(path)
 
-    # Play with pygame (works on Linux, Windows, Mac)
-    pygame.mixer.music.load(path)
-    pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy():
-        time.sleep(0.1)
+        # Play with pygame (works on Linux, Windows, Mac)
+        pygame.mixer.music.load(path)
+        pygame.mixer.music.play()
+        while pygame.mixer.music.get_busy():
+            time.sleep(0.1)
+            
+    except Exception as e:
+        print(f"Voice synthesis error: {e}")
+        # Don't crash the application if voice fails
 
 
-def speak(text, emotion=None, context="chat"):
-    print("Serena:", text)
-    asyncio.run(_speak_async(text, emotion, context))
+def speak(text, emotion=None, context="chat", character=None):
+    if not VOICE_AVAILABLE:
+        char_name = get_character(character)["name"] if character else "AI"
+        print(f"{char_name} (text only):", text)
+        return
+        
+    try:
+        char_name = get_character(character)["name"] if character else "AI"
+        print(f"{char_name}:", text)
+        asyncio.run(_speak_async(text, emotion, context, character))
+    except Exception as e:
+        print(f"Voice output error: {e}")
+        # Continue without voice - don't crash
 
 
 # --------------------
@@ -170,6 +226,9 @@ def speak(text, emotion=None, context="chat"):
 # --------------------
 
 def listen(duration=3, emotion_detection=True):
+    if not VOICE_AVAILABLE:
+        return "", None
+        
     fs = 16000
 
     try:
@@ -219,6 +278,10 @@ class ContinuousConversation:
         
     def start(self):
         """Start continuous conversation mode"""
+        if not VOICE_AVAILABLE:
+            print("Continuous conversation not available - voice system not loaded")
+            return
+            
         self.running = True
         self.conversation_active = True
         threading.Thread(target=self._conversation_loop, daemon=True).start()

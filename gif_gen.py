@@ -142,10 +142,11 @@ def generate_morphing_gif(base_prompt: str, frames: int = 10, duration: int = 50
 def is_gif_request(text: str) -> bool:
     """Check if the user is requesting a GIF generation."""
     gif_keywords = [
-        "gif", "animated", "animation", "moving image",
-        "animate", "make a gif", "create a gif"
+        "generate gif", "generate a gif", "create a gif", "create gif",
+        "make a gif", "make gif", "animated gif", "generate an animation",
+        "create an animation", "make an animation"
     ]
-    text_lower = text.lower()
+    text_lower = text.lower().strip()
     return any(keyword in text_lower for keyword in gif_keywords)
 
 def extract_gif_prompt(text: str) -> str:

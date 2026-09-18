@@ -4,10 +4,18 @@ Handles application launching, website opening, system control, etc.
 """
 
 import os
+import subprocess
+import platform
 import webbrowser
-import pyautogui
 from pathlib import Path
 from datetime import datetime
+
+# Optional pyautogui import
+try:
+    import pyautogui
+    PYAUTOGUI_AVAILABLE = True
+except ImportError:
+    PYAUTOGUI_AVAILABLE = False
 
 class SystemCommands:
     """Centralized system command handling"""
@@ -64,22 +72,60 @@ class SystemCommands:
         """Open an application by name"""
         app_lower = app_name.lower()
         
-        # Try exact match first
-        if app_lower in SystemCommands.APPLICATIONS:
+        # Mapping for Linux / generic commands
+        linux_apps = {
+            'calculator': 'gnome-calculator',
+            'notepad': 'gedit',
+            'chrome': 'google-chrome',
+            'edge': 'microsoft-edge',
+            'firefox': 'firefox',
+            'vlc': 'vlc',
+            'vscode': 'code',
+            'visual studio code': 'code',
+            'spotify': 'spotify',
+            'steam': 'steam',
+            'terminal': 'x-terminal-emulator',
+            'cmd': 'x-terminal-emulator',
+            'command prompt': 'x-terminal-emulator',
+            'taskmanager': 'gnome-system-monitor',
+            'task manager': 'gnome-system-monitor',
+            'explorer': 'nautilus',
+            'file explorer': 'nautilus',
+        }
+        
+        system = platform.system()
+        
+        # Try Windows
+        if system == "Windows":
+            target = SystemCommands.APPLICATIONS.get(app_lower)
+            if not target:
+                for app, exe in SystemCommands.APPLICATIONS.items():
+                    if app_lower in app or app in app_lower:
+                        target = exe
+                        break
+            if target:
+                try:
+                    if hasattr(os, 'startfile'):
+                        os.startfile(target)
+                    else:
+                        subprocess.Popen([target], shell=True)
+                    return f"Opened {app_name}"
+                except Exception as e:
+                    return f"Failed to open {app_name}: {str(e)}"
+        else:
+            # Linux / macOS
+            cmd = linux_apps.get(app_lower, app_lower)
             try:
-                os.startfile(SystemCommands.APPLICATIONS[app_lower])
+                subprocess.Popen([cmd])
                 return f"Opened {app_name}"
+            except FileNotFoundError:
+                try:
+                    subprocess.Popen(["xdg-open", app_name])
+                    return f"Opened {app_name}"
+                except Exception as e:
+                    return f"Failed to open {app_name}: {str(e)}"
             except Exception as e:
                 return f"Failed to open {app_name}: {str(e)}"
-        
-        # Try partial match
-        for app, exe in SystemCommands.APPLICATIONS.items():
-            if app_lower in app or app in app_lower:
-                try:
-                    os.startfile(exe)
-                    return f"Opened {app}"
-                except Exception as e:
-                    return f"Failed to open {app}: {str(e)}"
         
         return f"Application '{app_name}' not recognized"
     
@@ -118,6 +164,8 @@ class SystemCommands:
     @staticmethod
     def control_volume(action):
         """Control system volume"""
+        if not PYAUTOGUI_AVAILABLE:
+            return "Volume control not available (pyautogui not installed)"
         try:
             if action in ['up', 'increase', 'raise']:
                 for _ in range(5):  # Press multiple times for noticeable change
@@ -138,6 +186,8 @@ class SystemCommands:
     @staticmethod
     def control_brightness(action):
         """Control screen brightness"""
+        if not PYAUTOGUI_AVAILABLE:
+            return "Brightness control not available (pyautogui not installed)"
         try:
             if action in ['up', 'increase', 'raise']:
                 for _ in range(5):
@@ -155,6 +205,8 @@ class SystemCommands:
     @staticmethod
     def take_screenshot():
         """Take a screenshot"""
+        if not PYAUTOGUI_AVAILABLE:
+            return "Screenshot not available (pyautogui not installed)"
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             screenshot_path = Path.home() / "Desktop" / f"screenshot_{timestamp}.png"
@@ -166,6 +218,8 @@ class SystemCommands:
     @staticmethod
     def show_desktop():
         """Show desktop (minimize all windows)"""
+        if not PYAUTOGUI_AVAILABLE:
+            return "Show desktop not available (pyautogui not installed)"
         try:
             pyautogui.hotkey('win', 'd')
             return "Desktop shown"
@@ -175,6 +229,8 @@ class SystemCommands:
     @staticmethod
     def minimize_all():
         """Minimize all windows"""
+        if not PYAUTOGUI_AVAILABLE:
+            return "Minimize all not available (pyautogui not installed)"
         try:
             pyautogui.hotkey('win', 'd')
             return "All windows minimized"
@@ -184,18 +240,31 @@ class SystemCommands:
     @staticmethod
     def control_power(action):
         """Control system power"""
+        system = platform.system()
         try:
             if action in ['shutdown', 'shut down', 'turn off']:
-                os.system('shutdown /s /t 1')
+                if system == "Windows":
+                    os.system('shutdown /s /t 1')
+                else:
+                    os.system('systemctl poweroff || shutdown -h now')
                 return "Shutting down..."
-            elif action in ['restart', 'reboot', 'reboot']:
-                os.system('shutdown /r /t 1')
+            elif action in ['restart', 'reboot']:
+                if system == "Windows":
+                    os.system('shutdown /r /t 1')
+                else:
+                    os.system('systemctl reboot || reboot')
                 return "Restarting..."
             elif action in ['sleep', 'hibernate']:
-                os.system('rundll32.exe powrprof.dll,SetSuspendState 0,1,0')
+                if system == "Windows":
+                    os.system('rundll32.exe powrprof.dll,SetSuspendState 0,1,0')
+                else:
+                    os.system('systemctl suspend')
                 return "Going to sleep..."
             elif action in ['lock', 'lock computer']:
-                os.system('rundll32.exe user32.dll,LockWorkStation')
+                if system == "Windows":
+                    os.system('rundll32.exe user32.dll,LockWorkStation')
+                else:
+                    os.system('loginctl lock-session || xdg-screensaver lock')
                 return "Locking computer..."
             else:
                 return "Unknown power action"

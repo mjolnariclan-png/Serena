@@ -11,7 +11,10 @@ import pygame
 VOICE = "en-US-JennyNeural"
 
 # Init pygame mixer once at module load
-pygame.mixer.init()
+try:
+    pygame.mixer.init()
+except Exception:
+    pass
 
 # --------------------
 # 🔊 SPEAK

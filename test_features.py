@@ -9,33 +9,71 @@ import os
 def test_imports():
     """Test that all new modules can be imported."""
     print("Testing imports...")
-    print("[SKIP] Dependencies need to be installed first")
-    print("Run: python setup_dependencies.py")
-    return True  # Skip for now since dependencies aren't installed
+    try:
+        import requests
+        import PIL
+        import coding_helper
+        import image_gen
+        import gif_gen
+        import web_search
+        print("[OK] All modules imported successfully")
+        return True
+    except Exception as e:
+        print(f"[FAIL] Import error: {e}")
+        return False
 
 def test_web_search():
     """Test web search functionality."""
     print("\nTesting web search...")
-    print("[SKIP] Requires requests module")
-    return True  # Skip for now
+    try:
+        from web_search import is_search_query, extract_search_query
+        assert is_search_query("search for python tutorials") == True
+        assert extract_search_query("search for python tutorials") == "python tutorials"
+        print("[OK] Web search query parsing works")
+        return True
+    except Exception as e:
+        print(f"[FAIL] Web search test failed: {e}")
+        return False
 
 def test_image_generation():
     """Test image generation functionality."""
     print("\nTesting image generation...")
-    print("[SKIP] Requires requests module")
-    return True  # Skip for now
+    try:
+        from image_gen import is_image_request, extract_image_prompt
+        assert is_image_request("generate an image of a cat") == True
+        assert len(extract_image_prompt("generate an image of a cat")) > 0
+        print("[OK] Image request parsing works")
+        return True
+    except Exception as e:
+        print(f"[FAIL] Image generation test failed: {e}")
+        return False
 
 def test_gif_generation():
     """Test GIF generation functionality."""
     print("\nTesting GIF generation...")
-    print("[SKIP] requires PIL module")
-    return True  # Skip for now
+    try:
+        from gif_gen import is_gif_request, extract_gif_prompt
+        assert is_gif_request("create a gif of a dancing robot") == True
+        assert len(extract_gif_prompt("create a gif of a dancing robot")) > 0
+        print("[OK] GIF request parsing works")
+        return True
+    except Exception as e:
+        print(f"[FAIL] GIF generation test failed: {e}")
+        return False
 
 def test_coding_helper():
     """Test coding helper functionality."""
     print("\nTesting coding helper...")
-    print("[SKIP] Requires coding_helper module dependencies")
-    return True  # Skip for now
+    try:
+        from coding_helper import is_coding_request, execute_code
+        assert is_coding_request("execute code ```python\nprint('hello')```") == True
+        res = execute_code("print('test')")
+        assert "test" in res
+        print("[OK] Coding helper works")
+        return True
+    except Exception as e:
+        print(f"[FAIL] Coding helper test failed: {e}")
+        return False
 
 def test_local_ai():
     """Test local AI commands."""

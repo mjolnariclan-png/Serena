@@ -1,11 +1,19 @@
-import pystray
-from pystray import MenuItem as item
+try:
+    import pystray
+    from pystray import MenuItem as item
+    PYSTRAY_AVAILABLE = True
+except Exception:
+    pystray = None
+    item = None
+    PYSTRAY_AVAILABLE = False
+
 from PIL import Image, ImageDraw
 from voice import speak
 
 
 def on_exit(icon, item):
-    icon.stop()
+    if icon:
+        icon.stop()
 
 
 def create_image():
@@ -16,6 +24,9 @@ def create_image():
 
 
 def start_tray():
+    if not PYSTRAY_AVAILABLE or pystray is None:
+        print("System tray is not supported in the current environment.")
+        return
     icon = pystray.Icon("Serena")
     icon.icon = create_image()
     icon.menu = pystray.Menu(

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "permission": {
+    "read": "allow",
+    "edit": "allow",
+    "bash": {
+      "*": "allow",
+      "git push *": "deny",
+      "sudo *": "deny",
+      "rm -rf *": "deny",
+      "git reset --hard *": "deny"
+    },
+    "webfetch": "allow",
+    "question": "deny",
+    "doom_loop": "allow",
+    "external_directory": "deny"
+  },
+
+  "provider": {
+    "nvidia": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "NVIDIA",
+      "options": {
+        "baseURL": "https://integrate.api.nvidia.com/v1"
+      },
+      "models": {
+        "openai/gpt-oss-20b": {
+          "name": "GPT-OSS 20B",
+          "limit": {
+            "context": 131072,
+            "output": 4096
+          }
+        }
+      }
+    },
+
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1"
+      },
+      "models": {
+        "qwen2.5-coder:1.5b": {
+          "name": "Qwen 2.5 Coder 1.5B",
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        },
+        "qwen2.5-coder:3b": {
+          "name": "Qwen 2.5 Coder 3B",
+          "limit": {
+            "context": 32768,
+            "output": 4096
+          }
+        }
+      }
+    }
+  },
+
+  "model": "ollama/qwen2.5-coder:3b"
+}

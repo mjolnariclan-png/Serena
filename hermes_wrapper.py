@@ -8,35 +8,23 @@ import sys
 import os
 from pathlib import Path
 
-# Add Hermes Agent to Python path
-HERMES_PATH = Path(r"C:\Users\mille\AppData\Local\hermes\hermes-agent")
-HERMES_VENV = Path(r"C:\Users\mille\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages")
-
-# Try to enable Hermes Agent
-HERMES_AVAILABLE = False
-
-if HERMES_PATH.exists():
+# Optional Hermes Agent path from environment
+HERMES_PATH = os.environ.get("HERMES_PATH")
+if HERMES_PATH and Path(HERMES_PATH).exists():
     sys.path.insert(0, str(HERMES_PATH))
-    print(f"Added Hermes path: {HERMES_PATH}")
-else:
-    print(f"Hermes path not found: {HERMES_PATH}")
 
-if HERMES_VENV.exists():
-    sys.path.insert(0, str(HERMES_VENV))
-    print(f"Added Hermes venv path: {HERMES_VENV}")
-else:
-    print(f"Hermes venv path not found: {HERMES_VENV}")
+# Try to enable Hermes Agent from system Python
+HERMES_AVAILABLE = False
 
 try:
     from run_agent import AIAgent
     HERMES_AVAILABLE = True
-    print("Hermes Agent successfully imported")
-except ImportError as e:
+    print("Hermes Agent successfully loaded")
+except ImportError:
     HERMES_AVAILABLE = False
-    print(f"Hermes Agent not available: {e}. Install and configure Hermes for advanced agentic features.")
 except Exception as e:
     HERMES_AVAILABLE = False
-    print(f"Hermes Agent initialization error: {e}. Using local agentic system instead.")
+    print(f"Hermes Agent initialization error: {e}. Using local agentic system.")
 
 
 class HermesAgent:
@@ -46,7 +34,7 @@ class HermesAgent:
     persistent memory while maintaining her existing personality and features.
     """
     
-    def __init__(self, model="llama3.2:latest", quiet_mode=True):
+    def __init__(self, model="qwen2.5-coder:3b", quiet_mode=True):
         if not HERMES_AVAILABLE:
             raise RuntimeError("Hermes Agent is not available or not properly installed")
         

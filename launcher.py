@@ -1,12 +1,13 @@
+#!/usr/bin/env python3
 """
 Serena Launcher - Background service for global hotkey startup
 Run this script to enable Ctrl+Alt+S to launch/show Serena from anywhere
 """
 
-import keyboard
-import subprocess
-import sys
 import os
+import sys
+import subprocess
+import keyboard
 import psutil
 from pathlib import Path
 

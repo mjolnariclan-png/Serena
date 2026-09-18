@@ -1,27 +1,46 @@
+#!/usr/bin/env python3
 # main.py
+import os
+import sys
+from pathlib import Path
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import scrolledtext, ttk
 from ai import set_mode, list_modes
+from characters import get_character, set_character, get_current_character, get_character_theme, list_characters
 import threading
 import keyboard
 import time
-import pystray
 from PIL import Image, ImageDraw
-import sys
-from pathlib import Path
+
+# Optional system tray import - use lazy import to avoid crashes
+PYSTRAY_AVAILABLE = False
+def _try_import_pystray():
+    global PYSTRAY_AVAILABLE
+    try:
+        import pystray
+        PYSTRAY_AVAILABLE = True
+        return pystray
+    except Exception:
+        PYSTRAY_AVAILABLE = False
+        return None
 
 
 class SerenaApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Serena")
-        self.root.geometry("700x600")
-        self.root.configure(bg="#1e1e1e")
-
+        self.root.title("Serena & Astrid")
+        self.root.geometry("800x700")
+        
+        # ── CHARACTER STATE ─────────────────────────────────
+        self.current_character = get_current_character()
+        self.current_theme = get_character_theme(self.current_character)
+        self.apply_theme()
+        
         # ── LAZY VOICE IMPORTS ───────────────────────────────
         self.voice_loaded = False
         self.listen = None
         self.speak = None
+        self.voice_available = True  # Track if voice system is available
 
         # ── HOTKEY SYSTEM ─────────────────────────────────────
         self.hotkeys_enabled = True
@@ -36,10 +55,121 @@ class SerenaApp:
 
         # ── SYSTEM TRAY ───────────────────────────────────
         self.setup_system_tray()
+        
+        # ── AGENT SYSTEM ───────────────────────────────────
+        self.setup_agent_system()
 
+        # ── BUILD UI WITH CHARACTER TABS ────────────────────
+        self.build_main_ui()
+        
         # ── START DIRECTLY IN CHAT MODE ───────────────────────
         set_mode("chat")
-        self.build_chat_ui("Chat / Sexting mode")
+        self.build_chat_ui("Chat / Adventure mode")
+    
+    def apply_theme(self):
+        """Apply current character's theme to the application"""
+        self.current_theme = get_character_theme(self.current_character)
+        self.root.configure(bg=self.current_theme["primary_bg"])
+    
+    def switch_character(self, character_id):
+        """Switch to a different character"""
+        if character_id == self.current_character and hasattr(self, 'chat_frame'):
+            return
+        result = set_character(character_id)
+        self.current_character = get_current_character()
+        self.apply_theme()
+        
+        # Update tab appearance
+        self.update_tab_appearance()
+        
+        # Update character info label
+        char_info = get_character()
+        self.info_label.config(text=f"{char_info['name']} - {char_info['identity']}", 
+                               fg=self.current_theme["accent_color"],
+                               bg=self.current_theme["primary_bg"])
+        
+        # Rebuild UI with new theme
+        self.chat_frame.destroy()
+        self.chat_frame = tk.Frame(self.root, bg=self.current_theme["primary_bg"])
+        self.chat_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        self.build_chat_ui(f"Switched to {get_character()['name']}", is_startup=False)
+        
+        # Update voice configuration
+        if self.voice_loaded:
+            try:
+                from voice_enhanced import set_voice
+                voice_config = get_character()["voice"]
+                set_voice(voice_config["default_voice"])
+            except Exception as e:
+                print(f"Voice switch notice: {e}")
+        
+        # Update tray icon
+        pystray = _try_import_pystray()
+        if pystray and hasattr(self, 'tray_icon'):
+            try:
+                new_icon = self.create_tray_icon()
+                self.tray_icon.icon = new_icon
+            except:
+                pass
+        
+        self.add_message(get_character()["name"], result)
+        self._speak(result)
+    
+    def update_tab_appearance(self):
+        """Update tab button appearances based on current character"""
+        theme = self.current_theme
+        
+        if self.current_character == "serena":
+            self.serena_tab.config(bg=theme["button_color"], relief=tk.RAISED)
+            self.astrid_tab.config(bg=theme["secondary_bg"], relief=tk.FLAT)
+        else:
+            self.serena_tab.config(bg=theme["secondary_bg"], relief=tk.FLAT)
+            self.astrid_tab.config(bg=theme["button_color"], relief=tk.RAISED)
+
+    def build_main_ui(self):
+        """Build the main UI with character tabs"""
+        # Character selection tabs
+        tab_frame = tk.Frame(self.root, bg=self.current_theme["primary_bg"])
+        tab_frame.pack(fill=tk.X, padx=10, pady=(10, 5))
+        
+        # Serena tab
+        self.serena_tab = tk.Button(
+            tab_frame,
+            text="⚡ Serena",
+            command=lambda: self.switch_character("serena"),
+            bg=self.current_theme["button_color"] if self.current_character == "serena" else self.current_theme["secondary_bg"],
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+            relief=tk.RAISED if self.current_character == "serena" else tk.FLAT
+        )
+        self.serena_tab.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        # Astrid tab  
+        self.astrid_tab = tk.Button(
+            tab_frame,
+            text="🛡️ Astrid",
+            command=lambda: self.switch_character("astrid"),
+            bg=self.current_theme["button_color"] if self.current_character == "astrid" else self.current_theme["secondary_bg"],
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+            relief=tk.RAISED if self.current_character == "astrid" else tk.FLAT
+        )
+        self.astrid_tab.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        # Character info label
+        char_info = get_character()
+        self.info_label = tk.Label(
+            tab_frame,
+            text=f"{char_info['name']} - {char_info['identity']}",
+            fg=self.current_theme["accent_color"],
+            bg=self.current_theme["primary_bg"],
+            font=("Segoe UI", 9, "italic")
+        )
+        self.info_label.pack(side=tk.RIGHT, padx=10)
+        
+        # Chat frame container
+        self.chat_frame = tk.Frame(self.root, bg=self.current_theme["primary_bg"])
+        self.chat_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
     def setup_hotkeys(self):
         """Setup global hotkeys for common actions"""
@@ -52,7 +182,8 @@ class SerenaApp:
                 'ctrl+shift+q': self.quick_exit,
                 'ctrl+shift+v': self.voice_input,
                 'ctrl+shift+h': self.show_hotkeys,
-                'ctrl+shift+t': self.toggle_continuous_conversation
+                'ctrl+shift+t': self.toggle_continuous_conversation,
+                'ctrl+shift+a': self.show_agent_status
             }
             
             # Register hotkeys
@@ -67,10 +198,12 @@ class SerenaApp:
             print("  Ctrl+Shift+V: Voice input")
             print("  Ctrl+Shift+H: Show hotkeys")
             print("  Ctrl+Shift+T: Toggle continuous conversation")
+            print("  Ctrl+Shift+A: Show agent status")
             print("  (Run launcher.py for Ctrl+Alt+S global startup)")
             
         except Exception as e:
             print(f"Could not setup hotkeys: {e}")
+            print("Hotkeys require root/sudo access on Linux. Running without hotkeys.")
             self.hotkeys_enabled = False
 
     def toggle_voice_mode(self):
@@ -80,7 +213,8 @@ class SerenaApp:
             new_mode = "voice" if current == "text" else "text"
             self.input_method.set(new_mode)
             self.toggle_input()
-            self.add_message("Serena", f"Switched to {new_mode} mode")
+            char_name = get_character()["name"]
+            self.add_message(char_name, f"Switched to {new_mode} mode")
 
     def clear_chat(self):
         """Clear the chat display"""
@@ -88,18 +222,22 @@ class SerenaApp:
             self.chat.configure(state="normal")
             self.chat.delete(1.0, tk.END)
             self.chat.configure(state="disabled")
-            self.add_message("Serena", "Chat cleared. Ready for new conversation.")
+            char_name = get_character()["name"]
+            self.add_message(char_name, "Chat cleared. Ready for new conversation.")
 
     def cycle_modes(self):
         """Cycle through available modes"""
-        from ai import get_current_mode, MODES
-        modes = list(MODES.keys())
+        from ai import get_current_mode, set_mode
+        from characters import get_character_modes
+        character_modes = get_character_modes()
+        modes = list(character_modes.keys())
         current = get_current_mode()
-        current_index = modes.index(current)
+        current_index = modes.index(current) if current in modes else 0
         next_index = (current_index + 1) % len(modes)
         next_mode = modes[next_index]
         result = set_mode(next_mode)
-        self.add_message("Serena", result)
+        char_name = get_character()["name"]
+        self.add_message(char_name, result)
         if hasattr(self, 'mode_label'):
             from ai import get_mode_config
             mode_config = get_mode_config(next_mode)
@@ -107,7 +245,8 @@ class SerenaApp:
 
     def quick_exit(self):
         """Quick exit with confirmation"""
-        self.add_message("Serena", "Goodnight! Shutting down...")
+        char_name = get_character()["name"]
+        self.add_message(char_name, "Goodnight! Shutting down...")
         self._speak("Goodnight! Shutting down.")
         self.root.after(1000, self.root.destroy)
 
@@ -126,16 +265,34 @@ class SerenaApp:
 • Ctrl+Shift+V: Voice input
 • Ctrl+Shift+H: Show this help
 • Ctrl+Shift+T: Toggle continuous conversation
+• Ctrl+Shift+A: Show agent status
 • (Run launcher.py for Ctrl+Alt+S global startup)"""
-        self.add_message("Serena", hotkey_info)
+        char_name = get_character()["name"]
+        self.add_message(char_name, hotkey_info)
+    
+    def show_agent_status(self):
+        """Display agent system status in chat"""
+        if not hasattr(self, 'agent_manager') or not self.agent_manager:
+            self.add_message(get_character()["name"], "Agent system not available")
+            return
+        
+        try:
+            dashboard = self.agent_manager.generate_dashboard_report()
+            self.add_message(get_character()["name"], f"Agent System Status:\n{dashboard}")
+        except Exception as e:
+            self.add_message(get_character()["name"], f"Error getting agent status: {e}")
 
     def toggle_continuous_conversation(self):
         """Toggle continuous voice conversation mode"""
+        if not self.voice_available:
+            self.add_message(get_character()["name"], "Voice system not available. Please install audio dependencies.")
+            return
+            
         if not self.voice_loaded:
             self._load_voice()
         
-        if not self.ContinuousConversation:
-            self.add_message("Serena", "Voice module not available for continuous conversation.")
+        if not self.voice_loaded or not hasattr(self, 'ContinuousConversation'):
+            self.add_message(get_character()["name"], "Voice module not available for continuous conversation.")
             return
             
         if self.continuous_active:
@@ -144,17 +301,22 @@ class SerenaApp:
                 self.continuous_conversation.stop()
             self.continuous_active = False
             self.conv_label.config(text="")
-            self.add_message("Serena", "Continuous conversation stopped. Use text input or Ctrl+Shift+V for voice.")
+            self.add_message(get_character()["name"], "Continuous conversation stopped. Use text input or Ctrl+Shift+V for voice.")
         else:
             # Start continuous conversation
             self.continuous_conversation = self.ContinuousConversation(self.process)
             self.continuous_conversation.start()
             self.continuous_active = True
             self.conv_label.config(text="🎙️ Continuous")
-            self.add_message("Serena", "Continuous conversation started. Just start talking! Press Ctrl+Shift+T to stop.")
+            self.add_message(get_character()["name"], "Continuous conversation started. Just start talking! Press Ctrl+Shift+T to stop.")
 
     def setup_system_tray(self):
         """Setup system tray icon"""
+        pystray = _try_import_pystray()
+        if not pystray:
+            print("System tray not available (missing dependencies)")
+            return
+            
         try:
             # Create a simple icon
             icon_image = self.create_tray_icon()
@@ -177,18 +339,32 @@ class SerenaApp:
             
         except Exception as e:
             print(f"Could not setup system tray: {e}")
+    
+    def setup_agent_system(self):
+        """Setup the background agent system"""
+        try:
+            from agents import get_agent_manager
+            self.agent_manager = get_agent_manager()
+            print("Agent system initialized")
+        except Exception as e:
+            print(f"Could not setup agent system: {e}")
+            self.agent_manager = None
 
     def create_tray_icon(self):
         """Create a simple icon for the system tray"""
         try:
-            # Create a simple pink square with "S"
+            # Use current character's theme color
+            theme = get_character_theme()
+            char_color = theme["tray_icon_color"]
+            char_initial = get_character()["name"][0]  # First letter of character name
+            
             width = 64
             height = 64
-            image = Image.new('RGB', (width, height), color='#ff80ab')
+            image = Image.new('RGB', (width, height), color=char_color)
             dc = ImageDraw.Draw(image)
             
-            # Draw "S" in the center
-            dc.text((20, 15), "S", fill='white', font=None)
+            # Draw character initial in the center
+            dc.text((24, 15), char_initial, fill='white', font=None)
             
             return image
         except Exception as e:
@@ -196,65 +372,71 @@ class SerenaApp:
             # Return a simple colored rectangle as fallback
             return Image.new('RGB', (64, 64), color='#ff80ab')
 
-    def build_chat_ui(self, mode_result):
+    def build_chat_ui(self, mode_result, is_startup: bool = True):
         # ── TOP BAR ────────────────────────────────────────
-        top_bar = tk.Frame(self.root, bg="#1e1e1e")
+        top_bar = tk.Frame(self.chat_frame, bg=self.current_theme["primary_bg"])
         top_bar.pack(fill=tk.X, padx=10, pady=(10, 0))
 
         self.input_method = tk.StringVar(value="text")
         
         # Mode indicator
-        self.mode_label = tk.Label(top_bar, text=f"Mode: {mode_result}", fg="#ff80ab",
-                                   bg="#1e1e1e", font=("Segoe UI", 10, "bold"))
+        self.mode_label = tk.Label(top_bar, text=f"Mode: {mode_result}", fg=self.current_theme["accent_color"],
+                                   bg=self.current_theme["primary_bg"], font=self.current_theme["header_font"])
         self.mode_label.pack(side=tk.LEFT)
         
         # Status indicator
-        self.status_label = tk.Label(top_bar, text="● Ready", fg="#00e676",
-                                    bg="#1e1e1e", font=("Segoe UI", 9))
+        self.status_label = tk.Label(top_bar, text="● Ready", fg=self.current_theme["status_ready"],
+                                    bg=self.current_theme["primary_bg"], font=("Segoe UI", 9))
         self.status_label.pack(side=tk.LEFT, padx=(10, 0))
 
         # Input method radio buttons
         tk.Radiobutton(top_bar, text="Text", variable=self.input_method,
-                       value="text", fg="white", bg="#1e1e1e",
-                       selectcolor="#2d2d2d", font=("Segoe UI", 9),
+                       value="text", fg=self.current_theme["text_color"], bg=self.current_theme["primary_bg"],
+                       selectcolor=self.current_theme["secondary_bg"], font=("Segoe UI", 9),
                        command=self.toggle_input).pack(side=tk.RIGHT)
         tk.Radiobutton(top_bar, text="Voice", variable=self.input_method,
-                       value="voice", fg="white", bg="#1e1e1e",
-                       selectcolor="#2d2d2d", font=("Segoe UI", 9),
+                       value="voice", fg=self.current_theme["text_color"], bg=self.current_theme["primary_bg"],
+                       selectcolor=self.current_theme["secondary_bg"], font=("Segoe UI", 9),
                        command=self.toggle_input).pack(side=tk.RIGHT, padx=(0, 10))
         
         # Voice output toggle
         self.voice_output_var = tk.BooleanVar(value=True)
         tk.Checkbutton(top_bar, text="🔊", variable=self.voice_output_var,
-                       fg="white", bg="#1e1e1e", selectcolor="#2d2d2d",
+                       fg=self.current_theme["text_color"], bg=self.current_theme["primary_bg"], 
+                       selectcolor=self.current_theme["secondary_bg"],
                        font=("Segoe UI", 9), command=self.toggle_voice_output).pack(side=tk.RIGHT, padx=(0, 10))
         
         # Continuous conversation indicator
         self.conv_label = tk.Label(top_bar, text="", fg="#ff9800",
-                                   bg="#1e1e1e", font=("Segoe UI", 9))
+                                   bg=self.current_theme["primary_bg"], font=("Segoe UI", 9))
         self.conv_label.pack(side=tk.RIGHT, padx=(0, 10))
+        
+        # Agent status indicator
+        self.agent_label = tk.Label(top_bar, text="🤖 Agents", fg=self.current_theme["accent_color"],
+                                   bg=self.current_theme["primary_bg"], font=("Segoe UI", 9))
+        self.agent_label.pack(side=tk.RIGHT, padx=(0, 10))
 
         # ── CHAT DISPLAY ────────────────────────────────────
         self.chat = scrolledtext.ScrolledText(
-            self.root,
+            self.chat_frame,
             wrap=tk.WORD,
-            bg="#2d2d2d",
-            fg="white",
-            font=("Segoe UI", 11),
+            bg=self.current_theme["secondary_bg"],
+            fg=self.current_theme["text_color"],
+            font=self.current_theme["body_font"],
             state="disabled"
         )
         self.chat.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
         # ── BOTTOM INPUT AREA ───────────────────────────────
-        self.bottom = tk.Frame(self.root, bg="#1e1e1e")
+        self.bottom = tk.Frame(self.chat_frame, bg=self.current_theme["primary_bg"])
         self.bottom.pack(fill=tk.X, padx=10, pady=10)
 
         self.entry = tk.Entry(
             self.bottom,
-            bg="#3c3c3c",
-            fg="white",
+            bg=self.current_theme["secondary_bg"],
+            fg=self.current_theme["text_color"],
             font=("Segoe UI", 12),
-            insertbackground="white"
+            insertbackground=self.current_theme["text_color"]
         )
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
         self.entry.bind("<Return>", self.send_text)
@@ -263,7 +445,7 @@ class SerenaApp:
             self.bottom,
             text="Send",
             command=self.send_text,
-            bg="#007acc",
+            bg=self.current_theme["button_color"],
             fg="white",
             font=("Segoe UI", 10, "bold")
         )
@@ -273,7 +455,7 @@ class SerenaApp:
             self.bottom,
             text="🎤  Listen",
             command=self.send_voice,
-            bg="#007acc",
+            bg=self.current_theme["button_color"],
             fg="white",
             font=("Segoe UI", 12, "bold"),
             height=2
@@ -281,8 +463,15 @@ class SerenaApp:
         self.listen_btn.pack(fill=tk.X)
         self.listen_btn.pack_forget()  # hidden by default
 
-        self.add_message("Serena", f"Hey baby... I'm ready for you.\n{mode_result}\nI can help with coding, web search, generate images and GIFs, and much more.\nI'll automatically switch modes based on what we talk about - just start chatting!")
-        self._speak("Hey baby. I'm ready for you.")
+        # Character-specific welcome message (only once on startup)
+        if is_startup:
+            char = get_character()
+            if self.current_character == "serena":
+                welcome_msg = f"Hey trainer! I'm ready for our adventure!\n{mode_result}\nI can help with coding, web search, generate images and GIFs, and much more.\nI'll automatically switch modes based on what we talk about - just start chatting!"
+            else:
+                welcome_msg = f"Welcome, friend. I am Astrid, ready to assist you.\n{mode_result}\nI can help with coding, web search, generate images and GIFs, and much more.\nI'll automatically switch modes based on what we talk about - just start chatting."
+            
+            self.add_message(char["name"], welcome_msg)
 
     def show_window(self, icon=None, item=None):
         """Show the main window"""
@@ -304,16 +493,23 @@ class SerenaApp:
         try:
             import subprocess
             launcher_path = Path(__file__).parent / "launcher.py"
-            subprocess.Popen([sys.executable, str(launcher_path)], 
-                          creationflags=subprocess.CREATE_NEW_CONSOLE)
-            self.add_message("Serena", "Launcher started! Press Ctrl+Alt+S from anywhere to launch Serena.")
+            if os.name == 'nt':
+                subprocess.Popen([sys.executable, str(launcher_path)], 
+                              creationflags=subprocess.CREATE_NEW_CONSOLE)
+            else:
+                subprocess.Popen([sys.executable, str(launcher_path)], 
+                              start_new_session=True)
+            char_name = get_character()["name"]
+            self.add_message(char_name, "Launcher started! Press Ctrl+Alt+S from anywhere to launch.")
         except Exception as e:
-            self.add_message("Serena", f"Failed to start launcher: {e}")
+            char_name = get_character()["name"]
+            self.add_message(char_name, f"Failed to start launcher: {e}")
 
     def quit_app(self, icon=None, item=None):
         """Quit the application"""
         self.root.quit()
-        icon.stop()
+        if icon:
+            icon.stop()
 
     def toggle_input(self):
         if self.input_method.get() == "text":
@@ -329,31 +525,45 @@ class SerenaApp:
         """Toggle voice output on/off"""
         self.voice_output_enabled = self.voice_output_var.get()
         status = "enabled" if self.voice_output_enabled else "disabled"
-        self.add_message("Serena", f"Voice output {status}")
+        char_name = get_character()["name"]
+        self.add_message(char_name, f"Voice output {status}")
 
     def _load_voice(self):
-        if not self.voice_loaded:
-            from voice_enhanced import listen, speak, ContinuousConversation
-            self.listen = listen
-            self.speak = speak
-            self.ContinuousConversation = ContinuousConversation
-            self.voice_loaded = True
+        if not self.voice_loaded and self.voice_available:
+            try:
+                from voice_enhanced import listen, speak, ContinuousConversation
+                self.listen = listen
+                self.speak = speak
+                self.ContinuousConversation = ContinuousConversation
+                self.voice_loaded = True
+            except Exception as e:
+                print(f"Voice system not available: {e}")
+                self.voice_available = False
+                self.voice_loaded = False
 
     def _speak(self, text, emotion=None):
-        print("Serena:", text)
-        if self.voice_output_enabled:
+        char_name = get_character()["name"]
+        print(f"{char_name}:", text)
+        if self.voice_output_enabled and self.voice_available:
             self._load_voice()
             if self.speak:
-                self.speak(text, emotion=emotion, context="chat")
+                try:
+                    self.speak(text, emotion=emotion, context="chat", character=self.current_character)
+                except Exception as e:
+                    print(f"Voice output error: {e}")
+                    # Continue without voice - don't crash
 
     def add_message(self, sender, text):
         self.chat.configure(state="normal")
         if sender == "You":
             self.chat.insert(tk.END, f"You: {text}\n\n", "user")
         else:
-            self.chat.insert(tk.END, f"Serena: {text}\n\n", "serena")
-        self.chat.tag_config("user", foreground="#4fc3f7")
-        self.chat.tag_config("serena", foreground="#ff80ab")
+            char_name = get_character()["name"]
+            self.chat.insert(tk.END, f"{char_name}: {text}\n\n", "character")
+        
+        # Apply theme colors
+        self.chat.tag_config("user", foreground=self.current_theme["user_message_color"])
+        self.chat.tag_config("character", foreground=self.current_theme["character_message_color"])
         self.chat.configure(state="disabled")
         self.chat.see(tk.END)
         
@@ -373,14 +583,15 @@ class SerenaApp:
         def run():
             from router import route
             response = route(user_input)
+            char_name = get_character()["name"]
 
             if response == "__SHUTDOWN__":
-                self.add_message("Serena", "Shutting down... goodnight.")
+                self.add_message(char_name, "Shutting down... goodnight.")
                 self._speak("Shutting down. Goodnight.")
                 self.root.after(1500, self.root.destroy)
                 return
 
-            self.add_message("Serena", response)
+            self.add_message(char_name, response)
             self.status_label.config(text="● Ready", fg="#00e676")
             
             # Detect emotion in response for voice output
@@ -402,8 +613,9 @@ class SerenaApp:
 
     def send_voice(self):
         self._load_voice()
+        char_name = get_character()["name"]
         if not self.listen:
-            self.add_message("Serena", "Voice module failed to load.")
+            self.add_message(char_name, "Voice module failed to load.")
             return
 
         self.listen_btn.config(text="Listening...", state="disabled")
@@ -415,7 +627,7 @@ class SerenaApp:
             if user_input:
                 self.root.after(0, lambda: self.process(user_input))
             else:
-                self.root.after(0, lambda: self.add_message("Serena", "I didn't catch that."))
+                self.root.after(0, lambda: self.add_message(char_name, "I didn't catch that."))
 
         threading.Thread(target=run, daemon=True).start()
 
@@ -426,7 +638,8 @@ class SerenaApp:
                 keyboard.unhook_all_hotkeys()
             except:
                 pass
-        if hasattr(self, 'tray_icon'):
+        pystray = _try_import_pystray()
+        if pystray and hasattr(self, 'tray_icon'):
             try:
                 self.tray_icon.stop()
             except:

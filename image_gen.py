@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import time
+import platform
 from pathlib import Path
 
 # Stable Diffusion WebUI API configuration
@@ -34,32 +35,38 @@ def start_sd_webui():
     if is_sd_running():
         return True
     
+    if not os.path.exists(SD_WEBUI_PATH):
+        print("Stable Diffusion WebUI directory not found.")
+        return False
+
     try:
         # Start webui with API enabled and CPU optimization
-        webui_script = os.path.join(SD_WEBUI_PATH, "webui-user.bat")
-        if not os.path.exists(webui_script):
-            webui_script = os.path.join(SD_WEBUI_PATH, "webui.bat")
+        if platform.system() == "Windows":
+            api_script = os.path.join(SD_WEBUI_PATH, "launch_api.bat")
+            with open(api_script, 'w') as f:
+                f.write('@echo off\n')
+                f.write('cd /d "%~dp0"\n')
+                f.write('python launch.py --api --listen --skip-python-version-check --skip-torch-cuda-test --no-half --use-cpu all\n')
+            subprocess.Popen(api_script, shell=True)
+        else:
+            api_script = os.path.join(SD_WEBUI_PATH, "launch_api.sh")
+            with open(api_script, 'w') as f:
+                f.write('#!/usr/bin/env bash\n')
+                f.write('cd "$(dirname "$0")"\n')
+                f.write('export PIP_BREAK_SYSTEM_PACKAGES=1\n')
+                f.write('python3 launch.py --api --listen --skip-python-version-check --skip-torch-cuda-test --no-half --use-cpu all\n')
+            os.chmod(api_script, 0o755)
+            subprocess.Popen([api_script])
         
-        # Create modified launch script for API mode with CPU flags
-        api_script = os.path.join(SD_WEBUI_PATH, "launch_api.bat")
-        with open(api_script, 'w') as f:
-            f.write(f'@echo off\n')
-            f.write(f'cd /d "%~dp0"\n')
-            f.write(f'call venv\\Scripts\\activate\n')
-            f.write(f'python launch.py --api --listen --skip-torch-cuda-test --no-half --use-cpu all\n')
-        
-        # Start the API server
-        subprocess.Popen(api_script, shell=True)
-        
-        # Wait for server to start
+        # Check if server starts up
         print("Starting Stable Diffusion WebUI API in CPU mode...")
-        for i in range(60):  # Wait up to 60 seconds for CPU mode
+        for i in range(5):
             time.sleep(1)
             if is_sd_running():
-                print("Stable Diffusion WebUI API is ready! (Running in CPU mode - will be slow)")
+                print("Stable Diffusion WebUI API is ready!")
                 return True
         
-        print("Failed to start Stable Diffusion WebUI API")
+        print("Stable Diffusion WebUI is starting in the background or needs manual launch.")
         return False
         
     except Exception as e:
@@ -128,12 +135,34 @@ def generate_image(prompt: str, negative_prompt: str = "", steps: int = None, wi
 
 def is_image_request(text: str) -> bool:
     """Check if the user is requesting an image generation."""
-    image_keywords = [
-        "generate", "create", "make", "draw", "paint", 
-        "image", "picture", "photo", "art", "illustration"
+    text_lower = text.lower().strip()
+    
+    # Negative filters - coding, file operations, web search, conversation, etc.
+    if any(non_img in text_lower for non_img in [
+        "create file", "create folder", "create directory", "create project",
+        "write code", "generate code", "write a story", "tell a story",
+        "write story", "open chrome", "open code", "system info", "what time", "what day"
+    ]):
+        return False
+        
+    explicit_patterns = [
+        "generate image", "generate an image", "generate a picture", "generate picture",
+        "create image", "create an image", "create a picture", "create picture",
+        "make an image", "make a picture", "draw an image", "draw a picture",
+        "draw me", "paint me", "draw a ", "paint a ", "picture of", "image of",
+        "photo of", "illustration of", "render an image", "render a picture",
+        "generate art", "generate wallpaper", "create wallpaper"
     ]
-    text_lower = text.lower()
-    return any(keyword in text_lower for keyword in image_keywords)
+    if any(pat in text_lower for pat in explicit_patterns):
+        return True
+        
+    image_nouns = ["image", "picture", "photo", "illustration", "painting", "drawing", "artwork", "wallpaper"]
+    action_verbs = ["generate", "draw", "paint", "render"]
+    
+    has_noun = any(noun in text_lower for noun in image_nouns)
+    has_verb = any(verb in text_lower for verb in action_verbs)
+    
+    return has_noun and has_verb
 
 def extract_quality_settings(text: str) -> dict:
     """Extract quality settings from user text."""

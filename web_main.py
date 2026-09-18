@@ -1,15 +1,18 @@
+#!/usr/bin/env python3
+import os
+import sys
+from pathlib import Path
 import eel
 import json
 import sqlite3
-import os
 from datetime import datetime
 import threading
 import time
 import pyautogui
 import psutil
-from pathlib import Path
 from router import route
 from ai import set_mode, get_current_mode, get_mode_config
+from system_commands import SystemCommands
 
 # Initialize Eel
 eel.init('www')
@@ -129,121 +132,27 @@ def execute_command(command):
 # Enhanced system control functions
 def open_application(app_name):
     """Open an application"""
-    apps = {
-        'calculator': 'calc.exe',
-        'notepad': 'notepad.exe',
-        'chrome': 'chrome.exe',
-        'edge': 'msedge.exe',
-        'firefox': 'firefox.exe',
-        'word': 'winword.exe',
-        'excel': 'excel.exe',
-        'powerpoint': 'powerpnt.exe',
-        'vlc': 'vlc.exe',
-        'vscode': 'code.exe',
-        'spotify': 'spotify.exe',
-        'steam': 'steam.exe',
-        'cmd': 'cmd.exe',
-        'taskmanager': 'taskmgr.exe',
-        'explorer': 'explorer.exe',
-        'paint': 'mspaint.exe'
-    }
-    
-    if app_name.lower() in apps:
-        try:
-            os.startfile(apps[app_name.lower()])
-            return f"Opened {app_name}"
-        except Exception as e:
-            return f"Failed to open {app_name}: {str(e)}"
-    else:
-        return f"Application '{app_name}' not recognized"
+    return SystemCommands.open_application(app_name)
 
 def open_website(site_name):
     """Open a website"""
-    sites = {
-        'google': 'https://www.google.com',
-        'youtube': 'https://www.youtube.com',
-        'wikipedia': 'https://www.wikipedia.org',
-        'github': 'https://www.github.com',
-        'amazon': 'https://www.amazon.com',
-        'instagram': 'https://www.instagram.com',
-        'facebook': 'https://www.facebook.com',
-        'twitter': 'https://www.twitter.com',
-        'linkedin': 'https://www.linkedin.com',
-        'netflix': 'https://www.netflix.com',
-        'gmail': 'https://mail.google.com',
-        'whatsapp': 'https://web.whatsapp.com'
-    }
-    
-    if site_name.lower() in sites:
-        try:
-            import webbrowser
-            webbrowser.open(sites[site_name.lower()])
-            return f"Opened {site_name}"
-        except Exception as e:
-            return f"Failed to open {site_name}: {str(e)}"
-    else:
-        return f"Website '{site_name}' not recognized"
+    return SystemCommands.open_website(site_name)
 
 def control_volume(action):
     """Control system volume"""
-    try:
-        if action == 'up':
-            pyautogui.press('volumeup')
-            return "Volume increased"
-        elif action == 'down':
-            pyautogui.press('volumedown')
-            return "Volume decreased"
-        elif action == 'mute':
-            pyautogui.press('volumemute')
-            return "Volume toggled"
-        else:
-            return "Unknown volume action"
-    except Exception as e:
-        return f"Volume control error: {str(e)}"
+    return SystemCommands.control_volume(action)
 
 def control_brightness(action):
     """Control screen brightness"""
-    try:
-        if action == 'up':
-            pyautogui.press('brightnessup')
-            return "Brightness increased"
-        elif action == 'down':
-            pyautogui.press('brightnessdown')
-            return "Brightness decreased"
-        else:
-            return "Unknown brightness action"
-    except Exception as e:
-        return f"Brightness control error: {str(e)}"
+    return SystemCommands.control_brightness(action)
 
 def take_screenshot():
     """Take a screenshot"""
-    try:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        screenshot_path = Path.home() / "Desktop" / f"screenshot_{timestamp}.png"
-        pyautogui.screenshot(str(screenshot_path))
-        return f"Screenshot saved to {screenshot_path}"
-    except Exception as e:
-        return f"Screenshot error: {str(e)}"
+    return SystemCommands.take_screenshot()
 
 def control_power(action):
     """Control system power"""
-    try:
-        if action == 'shutdown':
-            os.system('shutdown /s /t 1')
-            return "Shutting down..."
-        elif action == 'restart':
-            os.system('shutdown /r /t 1')
-            return "Restarting..."
-        elif action == 'sleep':
-            os.system('rundll32.exe powrprof.dll,SetSuspendState 0,1,0')
-            return "Going to sleep..."
-        elif action == 'lock':
-            os.system('rundll32.exe user32.dll,LockWorkStation')
-            return "Locking computer..."
-        else:
-            return "Unknown power action"
-    except Exception as e:
-        return f"Power control error: {str(e)}"
+    return SystemCommands.control_power(action)
 
 def send_whatsapp(phone_number, message):
     """Send WhatsApp message"""
